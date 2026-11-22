@@ -1,12 +1,17 @@
+import { useState } from "react";
 import {
+    Alert,
     Breadcrumbs,
     Button,
     Card,
     Field,
     Input,
     NativeSelect,
+    RadioCards,
+    RadioCard,
     WorkflowLayout,
     useWorkflowForm,
+    FormSection,
 } from "../../ui";
 
 type Award = {
@@ -35,8 +40,10 @@ export type PhaseCreditsProps = {
     csrfToken: string;
 };
 
-function AwardCard({ award, page }: { award: Award; page: PhaseCreditsProps }) {
-    const receipt = award.receipt;
+const paymentHelp =
+    "Link the original payment to this award. The gang keeps its current balance.";
+
+function AwardForm({ award, page }: { award: Award; page: PhaseCreditsProps }) {
     const form = useWorkflowForm({
         values: {
             method: award.eligible ? "collect" : "grant",
@@ -57,6 +64,7 @@ function AwardCard({ award, page }: { award: Award; page: PhaseCreditsProps }) {
         },
     });
     const { values, setValues, pending } = form;
+    const [noteOpen, setNoteOpen] = useState(Boolean(values.note));
     const method = values.method;
     const verb =
         method === "paid"
@@ -64,158 +72,205 @@ function AwardCard({ award, page }: { award: Award; page: PhaseCreditsProps }) {
             : method === "grant"
               ? `Grant ${award.name} credits`
               : `Collect ${award.name} credits`;
-    return (
-        <Card
-            header={
-                <h2>
-                    {award.name} · {award.cycle}
-                </h2>
-            }
+    const noteField = (
+        <Field
+            label={method === "collect" ? "Note" : "Reason"}
+            htmlFor={award.entry + "-note"}
         >
-            {receipt ? (
-                <div className="space-y-1">
-                    <p>
-                        {receipt.method === "paid"
-                            ? "Recorded as already paid"
-                            : receipt.method === "grant"
-                              ? "Granted"
-                              : "Collected"}{" "}
-                        · {receipt.amount}¢
-                        {receipt.actor && ` · ${receipt.actor}`}
-                    </p>
-                    {receipt.rolls.length > 0 && (
-                        <p>
-                            {award.terms} · Rolled{" "}
-                            {receipt.rolls
-                                .flatMap((count, i) =>
-                                    count === 0
-                                        ? []
-                                        : [
-                                              count === 1
-                                                  ? String(i + 1)
-                                                  : `${count} × ${i + 1}`,
-                                          ],
-                                )
-                                .join(", ")}
+            <Input
+                name="note"
+                value={values.note}
+                onChange={(e) => setValues({ ...values, note: e.target.value })}
+                maxLength={255}
+                required={method !== "collect"}
+            />
+        </Field>
+    );
+    const paid = method === "paid";
+    return (
+        <form onSubmit={form.save} className="space-y-3">
+            <input type="hidden" name="entry" value={award.entry} />
+            <input type="hidden" name="method" value={method} />
+            {(!paid || (page.payments.length <= 3 && !values.payment)) && (
+                <input type="hidden" name="payment" value="" />
+            )}
+            {!page.arbitrator && <input type="hidden" name="note" value="" />}
+            {page.arbitrator && (
+                <fieldset className="space-y-3" disabled={form.frozen}>
+                    {!award.eligible && !paid && (
+                        <p className="text-sm text-muted">
+                            Record why {page.gang} should receive this award.
                         </p>
                     )}
-                    {receipt.adjustment && (
-                        <p>Credit adjustment · {receipt.adjustment}</p>
-                    )}
-                    {receipt.note && <p>{receipt.note}</p>}
-                </div>
-            ) : (
-                <form onSubmit={form.save} className="space-y-3">
-                    <input type="hidden" name="entry" value={award.entry} />
-                    <input type="hidden" name="method" value={method} />
-                    {method !== "paid" && (
-                        <input type="hidden" name="payment" value="" />
-                    )}
-                    {!page.arbitrator && (
-                        <input type="hidden" name="note" value="" />
-                    )}
-                    <p>Phase entry · {award.terms}</p>
-                    {!award.eligible && (
-                        <p>An arbitrator can grant this award with a note.</p>
-                    )}
-                    <fieldset disabled={form.frozen} className="space-y-3">
-                        {page.arbitrator && page.payments.length > 0 && (
-                            <Field
-                                label="Action"
-                                htmlFor={award.entry + "-method"}
-                            >
-                                <NativeSelect
-                                    value={method}
-                                    onChange={(e) =>
-                                        setValues({
-                                            ...values,
-                                            method: e.target.value,
-                                        })
-                                    }
-                                >
-                                    <option
-                                        value={
-                                            award.eligible ? "collect" : "grant"
-                                        }
-                                    >
-                                        {award.eligible
-                                            ? "Collect credits"
-                                            : "Grant credits"}
-                                    </option>
-                                    <option value="paid">
-                                        Mark as already paid
-                                    </option>
-                                </NativeSelect>
-                            </Field>
-                        )}
-                        {method === "paid" && (
-                            <Field
-                                label="Credit adjustment"
-                                htmlFor={award.entry + "-payment"}
-                            >
-                                <NativeSelect
-                                    required
+                    {paid && page.payments.length <= 3 && (
+                        <RadioCards
+                            legend="Previous credit adjustment"
+                            description={paymentHelp}
+                        >
+                            {page.payments.map((p) => (
+                                <RadioCard
+                                    key={p.id}
                                     name="payment"
-                                    value={values.payment}
-                                    onChange={(e) =>
-                                        setValues({
-                                            ...values,
-                                            payment: e.target.value,
-                                        })
+                                    value={p.id}
+                                    label={p.label}
+                                    checked={values.payment === p.id}
+                                    onChange={() =>
+                                        setValues({ ...values, payment: p.id })
                                     }
-                                >
-                                    <option value="">Select a payment</option>
-                                    {page.payments.map((p) => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.label}
-                                        </option>
-                                    ))}
-                                </NativeSelect>
-                            </Field>
-                        )}
-                        {page.arbitrator && (
-                            <Field
-                                label={
-                                    method === "collect"
-                                        ? "Note (optional)"
-                                        : "Note"
-                                }
-                                htmlFor={award.entry + "-note"}
-                            >
-                                <Input
-                                    name="note"
-                                    value={values.note}
-                                    onChange={(e) =>
-                                        setValues({
-                                            ...values,
-                                            note: e.target.value,
-                                        })
-                                    }
-                                    maxLength={255}
-                                    required={method !== "collect"}
                                 />
-                            </Field>
-                        )}
-                    </fieldset>
-                    {form.hasErrors && (
-                        <div role="alert" tabIndex={-1} ref={form.summary}>
-                            {form.errors.__all__?.join(" ")} {form.notice}
-                        </div>
+                            ))}
+                        </RadioCards>
                     )}
-                    <Button
-                        type="submit"
-                        variant="success"
-                        busy={pending}
-                        disabled={pending}
-                    >
-                        {form.uncertain ? "Retry save" : verb}
-                    </Button>
-                </form>
+                    {paid && page.payments.length > 3 && (
+                        <Field
+                            label="Previous credit adjustment"
+                            htmlFor={award.entry + "-payment"}
+                            description={
+                                page.payments.find(
+                                    (p) => p.id === values.payment,
+                                )?.label ?? paymentHelp
+                            }
+                        >
+                            <NativeSelect
+                                name="payment"
+                                required
+                                value={values.payment}
+                                onChange={(e) =>
+                                    setValues({
+                                        ...values,
+                                        payment: e.target.value,
+                                    })
+                                }
+                            >
+                                <option value="">Select a payment</option>
+                                {page.payments.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.label}
+                                    </option>
+                                ))}
+                            </NativeSelect>
+                        </Field>
+                    )}
+                    {method === "collect" ? (
+                        <details
+                            open={noteOpen}
+                            onToggle={(event) =>
+                                setNoteOpen(event.currentTarget.open)
+                            }
+                        >
+                            <summary className="w-fit cursor-pointer text-sm font-medium text-muted">
+                                Add a note
+                            </summary>
+                            <div className="mt-2">{noteField}</div>
+                        </details>
+                    ) : (
+                        noteField
+                    )}
+                </fieldset>
             )}
-        </Card>
+            {form.hasErrors && (
+                <div ref={form.summary} tabIndex={-1}>
+                    <Alert tone="error" dismissible={false}>
+                        {form.errors.__all__?.join(" ")} {form.notice}
+                    </Alert>
+                </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+                <Button
+                    type="submit"
+                    variant="success"
+                    busy={pending}
+                    disabled={pending}
+                >
+                    {form.uncertain ? "Retry save" : verb}
+                </Button>
+                {page.arbitrator && page.payments.length > 0 && (
+                    <Button
+                        variant="ghost"
+                        disabled={form.frozen}
+                        onClick={() =>
+                            setValues({
+                                ...values,
+                                method: paid
+                                    ? award.eligible
+                                        ? "collect"
+                                        : "grant"
+                                    : "paid",
+                            })
+                        }
+                    >
+                        {paid ? "Cancel" : "Already paid?"}
+                    </Button>
+                )}
+            </div>
+        </form>
     );
 }
+
+function Receipt({
+    award,
+}: {
+    award: Award & { receipt: NonNullable<Award["receipt"]> };
+}) {
+    const { receipt } = award;
+    const action =
+        receipt.method === "paid"
+            ? "Payment linked"
+            : receipt.method === "grant"
+              ? "Granted"
+              : "Collected";
+    const roll = receipt.rolls
+        .flatMap((count, i) =>
+            count ? [count === 1 ? String(i + 1) : `${count} × ${i + 1}`] : [],
+        )
+        .join(", ");
+    return (
+        <div className="min-w-0 space-y-2 border-t border-box-border pt-3 text-sm">
+            <p>
+                {action}
+                {receipt.actor && ` by ${receipt.actor}`}
+            </p>
+            {roll && (
+                <p>
+                    {award.terms} · Rolled {roll}
+                </p>
+            )}
+            {receipt.adjustment && (
+                <p>
+                    <span className="font-medium">Credit adjustment</span> ·{" "}
+                    {receipt.adjustment}
+                </p>
+            )}
+            {receipt.note && (
+                <p className="break-words">
+                    <span className="font-medium">Note</span> · {receipt.note}
+                </p>
+            )}
+        </div>
+    );
+}
+
 export function PhaseCredits(page: PhaseCreditsProps) {
+    const pending = page.awards.filter((a) => !a.receipt);
+    const receipts = page.awards.filter(
+        (a): a is Award & { receipt: NonNullable<Award["receipt"]> } =>
+            a.receipt !== null,
+    );
+    function heading(award: Award) {
+        return (
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <div className="min-w-0">
+                    <h3 className="break-words text-base font-semibold">
+                        {award.name}
+                    </h3>
+                    <p className="text-sm text-muted">{award.cycle}</p>
+                </div>
+                <span className="text-lg font-semibold tabular-nums">
+                    {award.receipt ? `${award.receipt.amount}¢` : award.terms}
+                </span>
+            </div>
+        );
+    }
     return (
         <WorkflowLayout
             footer={null}
@@ -230,12 +285,35 @@ export function PhaseCredits(page: PhaseCreditsProps) {
                 />
             }
         >
-            {page.awards.length ? (
-                page.awards.map((award) => (
-                    <AwardCard key={award.entry} award={award} page={page} />
-                ))
-            ) : (
-                <p>No phase credits are available for this gang.</p>
+            {pending.length > 0 && (
+                <FormSection title="Open awards">
+                    {pending.map((award) => (
+                        <Card key={award.entry}>
+                            <div className="space-y-3">
+                                {heading(award)}
+                                <AwardForm page={page} award={award} />
+                            </div>
+                        </Card>
+                    ))}
+                </FormSection>
+            )}
+            {receipts.length > 0 && (
+                <FormSection title="Receipts">
+                    {receipts.map((award) => (
+                        <Card key={award.entry}>
+                            <div className="space-y-3">
+                                {heading(award)}
+                                <Receipt award={award} />
+                            </div>
+                        </Card>
+                    ))}
+                </FormSection>
+            )}
+            {!page.awards.length && (
+                <p className="text-muted">
+                    Phase awards appear here when {page.gang} takes part in a
+                    phase with entry credits.
+                </p>
             )}
         </WorkflowLayout>
     );

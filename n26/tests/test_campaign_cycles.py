@@ -1397,6 +1397,37 @@ class TestPhaseCredits:
         assert earlier.eligible and later.eligible
         assert len(first) == len(repeated)
 
+    def test_campaign_table_shows_collection_receipts_and_arbitrator_grants(
+        self, downtime, campaign, owner, player, gang_type
+    ):
+        from n26.core.phase_credits import offers, settle, table_actions
+
+        active = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(active, campaign)
+        ids = [str(active.pk)]
+        with CaptureQueriesContext(connection) as one:
+            assert (
+                table_actions(campaign, ids, arbitrator=False)[ids[0]]
+                == "Collect phase credits"
+            )
+        (award,) = offers(campaign, active)
+        settle(campaign, active, player, award.entry, "collect")
+        advance(campaign, owner, downtime)
+        late = found_gang("Furnace Hounds", gang_type, owner=player, budget=1000)
+        join_campaign(late, campaign)
+        ids.append(str(late.pk))
+        with CaptureQueriesContext(connection) as two:
+            assert table_actions(campaign, ids, arbitrator=True) == {
+                ids[0]: "View phase receipts",
+                ids[1]: "Review phase credits",
+            }
+        assert len(one) == len(two)
+        assert table_actions(campaign, ids, arbitrator=False) == {
+            ids[0]: "View phase receipts"
+        }
+        active.refresh_from_db()
+        assert_reconciled(active)
+
     def test_another_gang_payment_cannot_settle_an_award_and_feature_access_is_required(
         self, downtime, campaign, owner, player, gang_type, opened, client
     ):

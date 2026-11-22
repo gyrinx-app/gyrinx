@@ -1,5 +1,6 @@
 """Resolve a gang's phase entry credits from recorded transitions and membership dates."""
 
+from collections import defaultdict
 from dataclasses import dataclass
 from random import SystemRandom
 
@@ -48,12 +49,19 @@ def offers(campaign, gang):
     memberships = list(
         campaign.memberships.filter(gang=gang).values_list("created", "left")
     )
-    boundaries = list(
+    return _offers(_boundaries(campaign), memberships)
+
+
+def _boundaries(campaign):
+    return list(
         campaign.cycle_transitions.filter(
             Q(receipt__enters_phase=True)
             | Q(kind=CampaignCycleTransition.Kind.FINISHED)
         ).order_by("occurred_at", "id")
     )
+
+
+def _offers(boundaries, memberships):
     awards = {}
     for index, entry in enumerate(boundaries):
         if entry.kind == CampaignCycleTransition.Kind.FINISHED:
@@ -153,12 +161,32 @@ def settle(campaign, gang, actor, entry, method, note="", payment_id=""):
         )
 
 
-def has_awards(campaign):
-    return (
-        campaign.cycle_transitions.filter(receipt__enters_phase=True)
-        .filter(
-            Q(receipt__current_phase__rewards__entry_credits__fixed__gt=0)
-            | Q(receipt__current_phase__rewards__entry_credits__dice__count__gt=0)
-        )
-        .exists()
-    )
+def table_actions(campaign, gang_ids, *, arbitrator):
+    """Use the same eligibility windows for every visible gang in the campaign table."""
+    boundaries = _boundaries(campaign)
+    if not boundaries:
+        return {}
+    memberships = defaultdict(list)
+    for gang_id, joined, left in campaign.memberships.filter(
+        gang_id__in=gang_ids
+    ).values_list("gang_id", "created", "left"):
+        memberships[str(gang_id)].append((joined, left))
+    paid = defaultdict(set)
+    for gang_id, entry_id in PhaseCreditReceipt.objects.filter(
+        entry__campaign=campaign, gang_id__in=gang_ids
+    ).values_list("gang_id", "entry_id"):
+        paid[str(gang_id)].add(entry_id)
+    actions = {}
+    for gang_id, periods in memberships.items():
+        unpaid = [
+            offer
+            for offer in _offers(boundaries, periods)
+            if offer.entry.pk not in paid[gang_id]
+        ]
+        if any(offer.eligible for offer in unpaid):
+            actions[gang_id] = "Collect phase credits"
+        elif arbitrator and unpaid:
+            actions[gang_id] = "Review phase credits"
+        elif paid[gang_id]:
+            actions[gang_id] = "View phase receipts"
+    return actions

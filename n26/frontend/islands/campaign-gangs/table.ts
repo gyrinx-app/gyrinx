@@ -21,6 +21,7 @@ export type Gang = {
     wealth: number;
     creditsHref: string;
     phaseCreditsHref?: string;
+    phaseCreditsLabel?: string;
     removeHref: string;
     overBudget: boolean;
     sortValues: Record<string, string | number | null>;

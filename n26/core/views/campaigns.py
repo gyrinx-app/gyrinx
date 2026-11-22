@@ -344,20 +344,23 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
         prepare_gang_table(sheet, request, here, current_url=current_url)
         preferences = table_query(request, current_url=sheet.table_href)
     from n26 import flags
-    from n26.core.phase_credits import has_awards
+    from n26.core.phase_credits import table_actions
 
-    phase_credits_available = (
-        not campaign.archived
-        and any(line.yours or yours for line in sheet.gangs)
+    gang_ids = [
+        line.gang_id
+        for line in sheet.gangs
+        if (line.yours or yours) and not line.credits_unlimited
+    ]
+    phase_actions = {}
+    if (
+        gang_ids
+        and not campaign.archived
         and flags.enabled(flags.CYCLE_TRACKING, viewer)
-        and has_awards(campaign)
-    )
+    ):
+        phase_actions = table_actions(campaign, gang_ids, arbitrator=yours)
     for line in sheet.gangs:
-        if (
-            phase_credits_available
-            and (line.yours or yours)
-            and not line.credits_unlimited
-        ):
+        line.phase_credits_label = phase_actions.get(str(line.gang_id), "")
+        if line.phase_credits_label:
             line.phase_credits_href = reverse(
                 "n26-phase-credits", args=[campaign.pk, line.gang_id]
             )

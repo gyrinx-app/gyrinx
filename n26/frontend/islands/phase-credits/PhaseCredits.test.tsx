@@ -41,12 +41,9 @@ test("an arbitrator links a previous adjustment with a note", async () => {
     expect(
         screen.getByRole("button", { name: "Grant Downtime credits" }),
     ).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText("Action"), "paid");
-    await user.selectOptions(
-        screen.getByLabelText("Credit adjustment"),
-        "adjustment",
-    );
-    await user.type(screen.getByLabelText("Note"), "Paid at the table");
+    await user.click(screen.getByRole("button", { name: "Already paid?" }));
+    await user.click(screen.getByRole("radio", { name: "250¢ · Downtime" }));
+    await user.type(screen.getByLabelText("Reason"), "Paid at the table");
     await user.click(
         screen.getByRole("button", { name: "Mark as already paid" }),
     );
