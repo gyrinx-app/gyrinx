@@ -6,6 +6,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
+    "CAMPAIGN_FEEDS",
     "CYCLE_TRACKING",
     "STAGED_CONTENT",
     "enabled",
@@ -24,4 +25,7 @@ STAGED_CONTENT = "staged-content"
 #: Gate campaign scheduling and cycle attribution independently of campaign access.
 CYCLE_TRACKING = "campaign-cycles"
 
-register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT, CYCLE_TRACKING)
+#: Hide the Feeds tab and close every public feed page while disabled.
+CAMPAIGN_FEEDS = "campaign-feeds"
+
+register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT, CYCLE_TRACKING, CAMPAIGN_FEEDS)
