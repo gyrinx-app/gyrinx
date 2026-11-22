@@ -241,14 +241,14 @@ test.each([false, true])(
     },
 );
 
-test("advancing a projected cycle keeps the transition clear without a saving notice", () => {
+test("ending a projected cycle keeps the transition clear without a saving notice", () => {
     render(
         <ScheduleEditor
             phases={phases}
             editor={{
                 ...editor,
                 kind: "advance",
-                heading: "Advance cycle",
+                heading: "End cycle",
                 lead: "End Cycle 1 and start Cycle 2. This will send notifications to players participating in the campaign.",
                 context: { ending: "Cycle 1", starting: "Cycle 2" },
             }}
@@ -256,7 +256,7 @@ test("advancing a projected cycle keeps the transition clear without a saving no
     );
     expect(screen.getByText(/End Cycle 1 and start Cycle 2/)).toBeTruthy();
     expect(screen.queryByText(/next projected cycle/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Advance cycle" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "End cycle" })).toBeTruthy();
 });
 
 test("a lost response freezes the draft and retries the exact command", async () => {

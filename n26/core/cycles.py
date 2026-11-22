@@ -1181,7 +1181,7 @@ def advance(campaign, *, actor, expected_current, expected_revision, request_key
             str(expected_current) if expected_current else None
         ):
             raise CycleConflict(
-                "The current cycle changed. Review the transition before advancing."
+                "The current cycle changed. Review it before ending the cycle."
             )
         change = s.advance(before, now=timezone.now(), new_id=_new_id)
         return change, change.schedule.current_cycle_id

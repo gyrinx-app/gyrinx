@@ -94,7 +94,7 @@ HEADINGS = {
     "pattern": "Edit repeating pattern",
     "plan-cycles": "Add cycles from pattern",
     "start": "Start campaign",
-    "advance": "Advance cycle",
+    "advance": "End cycle",
     "finish": "Finish campaign",
 }
 

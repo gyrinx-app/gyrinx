@@ -72,7 +72,7 @@ function props(): ScheduleProps {
         actions: {
             plan: "/plan/",
             transition: "/advance/",
-            transitionLabel: "Advance cycle",
+            transitionLabel: "End cycle",
             template: "/templates/",
             saveTemplate: "/templates/save/",
         },
