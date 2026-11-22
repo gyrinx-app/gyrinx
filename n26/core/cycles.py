@@ -400,6 +400,10 @@ def _free_positions(occupied, count):
 
 
 def _persist(act, before, change, *, command=None, transition_id=None):
+    if change.transition is not None:
+        change = s.record_transition_dates(
+            change, on=timezone.localdate(change.transition.occurred_at)
+        )
     after = change.schedule
     campaign = act.campaign
     old_phases = {p.id: p for p in before.phases} if before else {}

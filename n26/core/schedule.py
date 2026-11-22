@@ -297,6 +297,12 @@ def validate_cycle_dates(cycles, *, affected=None):
     for (earlier, left), (later, right) in combinations(dated, 2):
         if affected is not None and not {earlier.id, later.id} & affected:
             continue
+        # Progression can end one cycle and start the next on the same day.
+        if (
+            earlier.details.ends_on is not None
+            and earlier.details.ends_on == later.details.starts_on
+        ):
+            continue
         if left[0] <= right[1] and right[0] <= left[1]:
             raise ScheduleError(
                 f"The dates for {later.name} overlap {earlier.name}. Choose dates outside the other saved cycles."
@@ -477,6 +483,65 @@ class ScheduleChange:
     created: tuple[Cycle, ...] = ()
     updated: tuple[Cycle, ...] = ()
     transition: Transition | None = None
+
+
+def record_transition_dates(change: ScheduleChange, *, on: date) -> ScheduleChange:
+    """Fill unspecified dates from progression without replacing planned dates."""
+    transition = change.transition
+    if transition is None or transition.kind == "phase_changed":
+        return change
+    starts = (
+        transition.current_cycle.id
+        if transition.kind in ("started", "advanced")
+        else None
+    )
+    ends = (
+        transition.previous_cycle.id
+        if transition.kind in ("advanced", "finished") and transition.previous_cycle
+        else None
+    )
+    amended = {}
+    for cycle in change.schedule.cycles:
+        details = cycle.details
+        if (
+            cycle.id == starts
+            and details.starts_on is None
+            and (details.ends_on is None or on <= details.ends_on)
+        ):
+            details = replace(details, starts_on=on)
+        if (
+            cycle.id == ends
+            and details.ends_on is None
+            and (details.starts_on is None or on >= details.starts_on)
+        ):
+            details = replace(details, ends_on=on)
+        if details != cycle.details:
+            amended[cycle.id] = replace(cycle, details=details)
+    if not amended:
+        return change
+
+    def dated(cycle):
+        return amended.get(cycle.id, cycle) if cycle is not None else None
+
+    created_ids = {cycle.id for cycle in change.created}
+    updated_ids = {cycle.id for cycle in change.updated} | (
+        amended.keys() - created_ids
+    )
+    return replace(
+        change,
+        schedule=replace(
+            change.schedule, cycles=tuple(map(dated, change.schedule.cycles))
+        ),
+        created=tuple(map(dated, change.created)),
+        updated=tuple(
+            dated(cycle) for cycle in change.schedule.cycles if cycle.id in updated_ids
+        ),
+        transition=replace(
+            transition,
+            previous_cycle=dated(transition.previous_cycle),
+            current_cycle=dated(transition.current_cycle),
+        ),
+    )
 
 
 @dataclass(frozen=True)
