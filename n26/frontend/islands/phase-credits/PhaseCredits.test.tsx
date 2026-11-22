@@ -8,6 +8,7 @@ const props: PhaseCreditsProps = {
     campaign: "Cinder Road",
     campaignHref: "/campaign/",
     action: "/phase-credits/",
+    recoveryKey: "phase-credits:arbitrator:campaign:gang",
     csrfToken: "csrf",
     arbitrator: true,
     payments: [{ id: "adjustment", label: "250¢ · Downtime" }],

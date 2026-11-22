@@ -1311,10 +1311,15 @@ class TestPhaseCredits:
         assert award.eligible
         url = reverse("n26-phase-credits", args=[campaign.pk, gang.pk])
         client.force_login(player)
-        assert client.get(url).context["props"]["awards"][0]["eligible"]
+        player_props = client.get(url).context["props"]
+        assert player_props["awards"][0]["eligible"]
         data = {"entry": str(award.entry.pk), "method": "collect"}
         assert client.post(url, data).status_code == 200
         client.force_login(owner)
+        assert (
+            client.get(url).context["props"]["recoveryKey"]
+            != player_props["recoveryKey"]
+        )
         assert client.post(url, data).status_code == 200
         receipt = PhaseCreditReceipt.objects.get()
         assert receipt.actor == player and sum(receipt.rolls) == 2

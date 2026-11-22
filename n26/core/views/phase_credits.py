@@ -95,6 +95,7 @@ def phase_awards(request, pk, gang_pk):
         "campaign": campaign.name,
         "campaignHref": reverse("n26-campaign", args=[campaign.pk]) + "#gangs",
         "action": request.path,
+        "recoveryKey": f"phase-credits:{actor.pk}:{campaign.pk}:{gang.pk}",
         "csrfToken": get_token(request),
     }
     return render(request, "n26/phase_credits.html", {"gang": gang, "props": props})

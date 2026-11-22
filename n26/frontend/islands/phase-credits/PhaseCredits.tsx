@@ -37,6 +37,7 @@ export type PhaseCreditsProps = {
     arbitrator: boolean;
     payments: { id: string; label: string }[];
     action: string;
+    recoveryKey: string;
     csrfToken: string;
 };
 
@@ -54,7 +55,7 @@ function AwardForm({ award, page }: { award: Award; page: PhaseCreditsProps }) {
         errors: {},
         commandHref: page.action,
         csrfToken: page.csrfToken,
-        recoveryKey: "phase-credits:" + page.action + ":" + award.entry,
+        recoveryKey: page.recoveryKey + ":" + award.entry,
         interpret(status, data) {
             if (status === 200 && data.saved === true)
                 return { kind: "completed" };
