@@ -29,14 +29,19 @@ def test_undated_cycles_can_be_saved_started_and_advanced():
     advanced = s.advance(started.schedule, now=NOW)
     assert advanced.schedule.current.order == 2
     assert advanced.schedule.cycles[-1].id == selected.id
-    assert all(
-        c.details.starts_on is c.details.ends_on is None
-        for c in advanced.schedule.cycles
-    )
+    assert [
+        (c.details.starts_on, c.details.ends_on) for c in advanced.schedule.cycles
+    ] == [
+        (NOW.date(), NOW.date()),
+        (NOW.date(), None),
+        (None, None),
+        (None, None),
+    ]
     state = s.start(state, now=NOW).schedule
     advanced = s.advance(state, now=NOW)
     assert advanced.created[0].order == 2
-    assert advanced.created[0].details.starts_on is None
+    assert advanced.created[0].details.starts_on == NOW.date()
+    assert advanced.created[0].details.ends_on is None
 
 
 def test_disabling_planning_dates_retains_saved_dates_and_only_clears_projections():
@@ -67,6 +72,11 @@ def test_disabling_planning_dates_retains_saved_dates_and_only_clears_projection
 def test_enabling_future_dates_keeps_saved_dated_and_undated_cycles():
     state = s.start(manual(), now=NOW).schedule
     state = s.advance(state, now=NOW).schedule
+    state = s.edit_cycle(
+        state,
+        s.SavedCycleRef(state.current.id),
+        replace(state.current.details, starts_on=None, ends_on=None),
+    ).schedule
     first = state.cycles[0]
     state = s.edit_cycle(
         state,
