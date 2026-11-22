@@ -382,10 +382,10 @@ class CampaignCycleDelivery(Base):
 class PhaseCreditReceipt(Base):
     """One gang's settlement of the award recorded at phase entry."""
 
-    entry = models.ForeignKey(CampaignCycleTransition, on_delete=models.PROTECT)
+    entry = models.ForeignKey(CampaignCycleTransition, on_delete=models.CASCADE)
     gang = models.ForeignKey("n26.Gang", on_delete=models.CASCADE)
     actor = models.ForeignKey("auth.User", null=True, on_delete=models.SET_NULL)
-    payment = models.OneToOneField("n26.LedgerEvent", on_delete=models.PROTECT)
+    payment = models.OneToOneField("n26.LedgerEvent", on_delete=models.RESTRICT)
     method = models.CharField(max_length=12)
     note = models.CharField(max_length=255, blank=True)
     rolls = models.JSONField(default=list)

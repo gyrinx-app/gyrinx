@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
                 (
                     "entry",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
+                        on_delete=django.db.models.deletion.CASCADE,
                         to="n26.campaigncycletransition",
                     ),
                 ),
@@ -56,7 +56,7 @@ class Migration(migrations.Migration):
                 (
                     "payment",
                     models.OneToOneField(
-                        on_delete=django.db.models.deletion.PROTECT,
+                        on_delete=django.db.models.deletion.RESTRICT,
                         to="n26.ledgerevent",
                     ),
                 ),

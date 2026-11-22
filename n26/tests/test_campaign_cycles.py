@@ -1359,6 +1359,51 @@ class TestPhaseCredits:
                 assert gang.credits == 1065 and receipt.payment == payment
             assert_reconciled(gang)
 
+    def test_destroying_a_gang_removes_the_phase_receipt_and_its_payment(
+        self, downtime, campaign, player, gang_type
+    ):
+        from n26.core.deletion import destroy_gang
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        (award,) = offers(campaign, gang)
+        receipt = settle(campaign, gang, player, award.entry, "collect")
+        destroy_gang(gang)
+        assert not PhaseCreditReceipt.objects.filter(pk=receipt.pk).exists()
+        assert not LedgerEvent.objects.filter(pk=receipt.payment_id).exists()
+
+    def test_destroying_a_campaign_preserves_the_linked_gang_adjustment(
+        self, downtime, campaign, owner, player, gang_type
+    ):
+        from n26.core.deletion import destroy_campaign
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        with operation(gang, actor=owner) as op:
+            payment = op.adjust_credits(65, "Downtime")
+        (award,) = offers(campaign, gang)
+        receipt = settle(
+            campaign,
+            gang,
+            owner,
+            award.entry,
+            "paid",
+            "Paid at the table",
+            str(payment.pk),
+        )
+        destroy_campaign(campaign)
+        assert not PhaseCreditReceipt.objects.filter(pk=receipt.pk).exists()
+        payment.refresh_from_db()
+        assert payment.campaign_id is None and payment.gang_id == gang.pk
+        gang.refresh_from_db()
+        assert gang.credits == 1065
+        assert_reconciled(gang)
+
     @pytest.mark.django_db(transaction=True)
     def test_simultaneous_collections_share_the_roll_and_payment(
         self, downtime, campaign, owner, player, gang_type
