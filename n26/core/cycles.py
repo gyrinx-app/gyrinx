@@ -596,6 +596,7 @@ def _persist(act, before, change, *, command=None, transition_id=None):
             previous_phase_id=old_phase.id if old_phase else None,
             current_phase_id=phase.id,
             occurred_at=transition.occurred_at,
+            phase_occurrence_id=current.occurrence_id,
             receipt={
                 "campaign": campaign.name,
                 "previous_cycle": previous.name if previous else None,

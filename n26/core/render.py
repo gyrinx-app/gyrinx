@@ -1661,6 +1661,7 @@ class CampaignGangLine:
     href: str = ""
     #: Where the reader adds or removes this gang's credits, or empty.
     credits_href: str = ""
+    phase_credits_href: str = ""
     #: Where the reader takes this gang out of the campaign, or empty.
     remove_href: str = ""
     #: Whether the reader owns this gang — what decides which of the

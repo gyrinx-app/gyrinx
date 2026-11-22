@@ -20,6 +20,7 @@ export type Gang = {
     credits: number | null;
     wealth: number;
     creditsHref: string;
+    phaseCreditsHref?: string;
     removeHref: string;
     overBudget: boolean;
     sortValues: Record<string, string | number | null>;

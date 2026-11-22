@@ -235,6 +235,13 @@ export function CampaignGangs(
                         ) : (
                             `${gang.credits}¢`
                         )}
+                        {gang.phaseCreditsHref && (
+                            <div className="text-xs">
+                                <Link href={gang.phaseCreditsHref}>
+                                    Phase credits
+                                </Link>
+                            </div>
+                        )}
                     </td>
                     <td
                         headers={headers(3)}
