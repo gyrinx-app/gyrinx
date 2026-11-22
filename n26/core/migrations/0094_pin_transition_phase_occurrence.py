@@ -14,12 +14,23 @@ def pin_recorded_blocks(apps, schema_editor):
         kind="phase_changed",
         occurred_at__gte=models.OuterRef("occurred_at"),
     ).exclude(pk=models.OuterRef("pk"))
+    # Editing a neighbouring cycle can split an entire phase block without
+    # emitting a transition for the original entry cycle.
+    later_edit = (
+        apps.get_model("n26", "CampaignCycleCommand")
+        .objects.using(alias)
+        .filter(
+            campaign_id=models.OuterRef("campaign_id"),
+            created__gte=models.OuterRef("created"),
+        )
+        .exclude(kind__in=("advance", "start", "finish", "edit_phase", "save_template"))
+    )
     matching_cycle = cycles.filter(
         pk=models.OuterRef("current_cycle_id"),
         phase_id=models.OuterRef("current_phase_id"),
     )
     transitions.filter(phase_occurrence__isnull=True).exclude(
-        models.Exists(later_reassignment)
+        models.Exists(later_reassignment) | models.Exists(later_edit)
     ).update(
         phase_occurrence_id=models.Subquery(
             matching_cycle.values("phase_occurrence_id")[:1]

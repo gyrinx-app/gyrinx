@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import OuterRef, Q, Subquery
 
 from n26 import flags
-from n26.core.cycle_context import CycleContext
+from n26.core.cycle_context import PhaseEntryContext
 from n26.core.cycle_data import credits_from_data
 from n26.core.models import (
     CampaignCycleTransition,
@@ -111,7 +111,9 @@ def adjustments(campaign, gang):
 
 
 def settle(campaign, gang, actor, entry, method, note="", payment_id=""):
-    context = CycleContext(str(campaign.pk), str(entry.current_cycle_id))
+    context = PhaseEntryContext(
+        str(campaign.pk), str(entry.current_cycle_id), str(entry.pk)
+    )
     with operation(gang, actor=actor, cycle_context=context) as op:
         gang.refresh_from_db(fields=["owner", "archived", "credits"])
         campaign.refresh_from_db(fields=["owner", "archived"])

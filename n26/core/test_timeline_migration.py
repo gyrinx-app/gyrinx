@@ -464,3 +464,48 @@ def test_schedule_continuation_pointer_accepts_own_block_and_rejects_another_cam
         header.full_clean()
     assert "continuation_occurrence" in error.value.message_dict
     assert snapshot(CampaignSchedule, campaign_id=campaign.pk) == original
+
+
+def test_old_restarts_are_not_pinned_from_blocks_split_by_a_later_edit(legacy):
+    from django.utils import timezone
+
+    records = legacy.apps
+    transitions = records.get_model("n26", "CampaignCycleTransition").objects
+    occurrences = records.get_model("n26", "CampaignPhaseOccurrence").objects
+    cycles = records.get_model("n26", "CampaignCycle").objects
+    commands = records.get_model("n26", "CampaignCycleCommand").objects
+    phase = legacy.phases[0]
+    campaign = legacy.campaign.pk
+    entries = []
+    for idx, cycle in enumerate(legacy.cycles[:3]):
+        cycles.filter(pk=cycle.pk).update(phase_id=phase.pk)
+        if idx != 1:
+            entries.append(
+                transitions.create(
+                    campaign_id=campaign,
+                    kind="started",
+                    current_cycle_id=cycle.pk,
+                    current_phase_id=phase.pk,
+                    occurred_at=timezone.now(),
+                    receipt={"enters_phase": True},
+                )
+            )
+    commands.create(campaign_id=campaign, kind="edit_cycle", request_key=uuid4())
+    for pos, cycle in enumerate(legacy.cycles[:3], 1):
+        after = legacy.phases[1] if pos == 2 else phase
+        block = occurrences.create(
+            campaign_id=campaign, phase_id=after.pk, position=pos
+        )
+        cycles.filter(pk=cycle.pk).update(
+            phase_id=after.pk, phase_occurrence_id=block.pk
+        )
+    migration = import_module(
+        "n26.core.migrations.0094_pin_transition_phase_occurrence"
+    )
+    with connection.schema_editor(atomic=False) as editor:
+        migration.pin_recorded_blocks(records, editor)
+    assert list(
+        transitions.filter(pk__in=[entry.pk for entry in entries]).values_list(
+            "phase_occurrence_id", flat=True
+        )
+    ) == [None, None]

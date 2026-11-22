@@ -1359,6 +1359,31 @@ class TestPhaseCredits:
                 assert gang.credits == 1065 and receipt.payment == payment
             assert_reconciled(gang)
 
+    def test_a_recorded_award_survives_cycle_archival(
+        self, downtime, campaign, player, owner, gang_type
+    ):
+        from n26.core.cycle_context import CycleContext
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        (award,) = offers(campaign, gang)
+        advance(campaign, owner, downtime)
+        cycle = award.entry.current_cycle
+        cycle.archived = True
+        cycle.save(update_fields=["archived"])
+        with pytest.raises(Refusal, match="deleted"):
+            with operation(
+                gang, actor=player, cycle_context=CycleContext.from_cycle(cycle)
+            ):
+                pass
+        receipt = settle(campaign, gang, player, award.entry, "collect")
+        assert receipt.payment.cycle_id == cycle.pk
+        assert settle(campaign, gang, player, award.entry, "collect") == receipt
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_destroying_a_gang_removes_the_phase_receipt_and_its_payment(
         self, downtime, campaign, player, gang_type
     ):
