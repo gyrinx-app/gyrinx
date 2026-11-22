@@ -46,6 +46,8 @@ class DashboardCycles:
     setup_href: str
     phase_description: str = ""
     cycle_description: str = ""
+    phase_effects: str = ""
+    cycle_effects: str = ""
     order: int | None = None
     cycle_limit: int | None = None
     phase_position: int = 0
@@ -58,6 +60,14 @@ class DashboardCycles:
     complete: bool = False
     action_href: str = ""
     action_label: str = ""
+
+    @property
+    def phase_effects_props(self):
+        return {"label": "Phase effects", "effects": self.phase_effects}
+
+    @property
+    def cycle_effects_props(self):
+        return {"label": "Cycle effects", "effects": self.cycle_effects}
 
 
 def _phase_end(plan, next_position, phase_id, *, saved_count=None):
@@ -216,6 +226,8 @@ def dashboard_summary(campaign, user):
         summary.update(
             phase_description=current.phase.description,
             cycle_description=current.description,
+            phase_effects=current.phase.effects.strip(),
+            cycle_effects=current.effects.strip(),
             order=current.order,
             phase_position=current.order - previous,
             phase_count=boundary - previous - 1 if boundary is not None else None,
