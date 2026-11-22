@@ -851,9 +851,7 @@ def _build_locked(campaign, user, *, page, preview, focus):
         has_following = saved.count > current_order or bool(projected)
         action = "advance" if has_following else "finish"
         actions["transition"] = editor_url(campaign, action)
-        actions["transitionLabel"] = (
-            "Advance cycle" if has_following else "Finish campaign"
-        )
+        actions["transitionLabel"] = "End cycle" if has_following else "Finish campaign"
     continuation = saved.count + (len(projected) if not selected.has_next() else 0)
     following_position = header.next_position + len(projected)
     has_continuation = not selected.has_next() and (

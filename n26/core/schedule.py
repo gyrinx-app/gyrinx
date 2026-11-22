@@ -1595,12 +1595,12 @@ def apply_template(
 
 def preview_advance(schedule: Schedule) -> TransitionPreview:
     if schedule.status == "post_campaign":
-        raise ScheduleError("This campaign has finished. Its cycle cannot advance.")
+        raise ScheduleError("This campaign has finished. You cannot end another cycle.")
     if schedule.status != "in_progress":
-        raise ScheduleError("Start the campaign before advancing its cycle.")
+        raise ScheduleError("Start the campaign before ending a cycle.")
     current = schedule.current
     if current is None:
-        raise ScheduleError("Start a cycle before advancing.")
+        raise ScheduleError("Start a cycle before ending it.")
     following_saved = next(
         (c for c in schedule.cycles if not c.archived and c.order > current.order), None
     )
@@ -1621,7 +1621,7 @@ def start(
         raise ScheduleError("Reopen the campaign before starting a cycle.")
     if schedule.status == "in_progress" and schedule.current is not None:
         raise ScheduleError(
-            "A cycle is already current. Advance it to start the next cycle."
+            "A cycle is already current. End it to start the next cycle."
         )
     change = ScheduleChange(schedule)
     selected = schedule.current
