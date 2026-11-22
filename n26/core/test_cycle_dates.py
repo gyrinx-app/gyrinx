@@ -262,6 +262,36 @@ def test_advancement_dates_the_previous_end_before_validating_a_projected_succes
     s.validate_cycle_dates(changed.schedule.cycles)
 
 
+@pytest.mark.parametrize("first_day", [1, 8])
+def test_end_only_successors_and_previous_ends_are_inferred_together(first_day):
+    state = configured(current=1)
+    first, following = state.cycles
+    state = replace(
+        state,
+        status="in_progress",
+        current_cycle_id=first.id,
+        cycles=(
+            replace(
+                first,
+                details=replace(
+                    first.details, starts_on=date(2026, 11, first_day), ends_on=None
+                ),
+            ),
+            replace(
+                following,
+                details=replace(
+                    following.details, starts_on=None, ends_on=date(2026, 11, 8)
+                ),
+            ),
+        ),
+    )
+    changed = s.advance(state, now=datetime(2026, 11, 8, 12, tzinfo=UTC))
+    assert changed.schedule.cycles[0].details.ends_on == date(2026, 11, 8)
+    assert changed.schedule.current.details.starts_on == date(2026, 11, 8)
+    assert s.record_transition_dates(changed, on=date(2026, 11, 8)) == changed
+    s.validate_cycle_dates(changed.schedule.cycles)
+
+
 def test_delayed_progression_does_not_infer_an_end_over_another_planned_cycle():
     state = configured()
     first = replace(state.current, details=replace(state.current.details, ends_on=None))

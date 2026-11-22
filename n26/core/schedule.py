@@ -500,7 +500,7 @@ def record_transition_dates(change: ScheduleChange, *, on: date) -> ScheduleChan
         if transition.kind in ("advanced", "finished") and transition.previous_cycle
         else None
     )
-    amended = {}
+    proposed = []
     for cycle in change.schedule.cycles:
         details = cycle.details
         if (
@@ -516,20 +516,27 @@ def record_transition_dates(change: ScheduleChange, *, on: date) -> ScheduleChan
         ):
             details = replace(details, ends_on=on)
         if details != cycle.details:
-            candidate = replace(cycle, details=details)
-            candidates = tuple(
-                candidate if c.id == cycle.id else amended.get(c.id, c)
-                for c in change.schedule.cycles
+            proposed.append(replace(cycle, details=details))
+    # The two transition bounds may only be valid together on their shared day.
+    subsets = (
+        subset
+        for size in range(len(proposed), 0, -1)
+        for subset in combinations(proposed, size)
+    )
+    amended = {}
+    for subset in subsets:
+        candidates = {c.id: c for c in subset}
+        cycles = tuple(candidates.get(c.id, c) for c in change.schedule.cycles)
+        try:
+            validate_cycle_dates(cycles, affected=candidates.keys())
+            _validate_projection_dates(
+                replace(change.schedule, cycles=cycles), affected=candidates.keys()
             )
-            try:
-                validate_cycle_dates(candidates, affected={cycle.id})
-                _validate_projection_dates(
-                    replace(change.schedule, cycles=candidates), affected={cycle.id}
-                )
-            except ScheduleError:
-                # Planned dates take precedence over inferred transition dates.
-                continue
-            amended[cycle.id] = candidate
+        except ScheduleError:
+            # Planned dates take precedence over inferred transition dates.
+            continue
+        amended = candidates
+        break
     if not amended:
         return change
 
