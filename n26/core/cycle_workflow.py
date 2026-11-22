@@ -468,32 +468,8 @@ def prepare(campaign, action, query):
             if not c.archived and c.occurrence_id == occurrence.id
         ]
         if action == "phase":
-            frontier = max(
-                (c.order for c in children if _used_cycle(state, c)), default=0
-            )
-            used = [c for c in children if c.order <= frontier]
-            future = [c for c in children if c.order > frontier]
-            current_block = next(
-                (
-                    o
-                    for o in state.occurrences
-                    if state.current and o.id == state.current.occurrence_id
-                ),
-                None,
-            )
-            if (used and not future) or (
-                not children
-                and current_block
-                and occurrence.position <= current_block.position
-            ):
-                raise Http404("This phase has no unused future cycles to edit")
             initial.update(asdict(phase.details))
-            context["splitOccurrence"] = bool(used)
-            lead = (
-                "Changes apply to the unused future cycles in this phase. Recorded cycles keep their rules."
-                if used
-                else "Rewards are stored as settings. Saving them does not give credits or reputation."
-            )
+            lead = "Changes apply to all cycles in this phase. Saving rewards does not give credits or reputation."
         elif action == "duplicate-phase":
             initial["name"] = f"{phase.details.name} copy"[:200]
             ordered = [o for o in state.occurrences if not o.archived]

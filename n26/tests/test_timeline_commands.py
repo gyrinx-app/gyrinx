@@ -198,7 +198,7 @@ class TestTimelinePersistence:
         assert not CampaignCycleTransition.objects.exists()
         assert not CampaignCycleDelivery.objects.exists()
 
-    def test_a_used_block_split_keeps_current_recorded_links_and_transition_receipts(
+    def test_a_used_block_correction_keeps_recorded_links_and_transition_receipts(
         self, table
     ):
         start_key = uuid4()
@@ -236,9 +236,9 @@ class TestTimelinePersistence:
         }
         original_phase = before.phases[0]
         details = s.PhaseDetails(
-            "Later occupation",
-            "Future story",
-            "Future rules",
+            "Corrected occupation",
+            "Corrected story",
+            "Corrected rules",
             s.RewardSettings(entry_credits=s.CreditAmount(250)),
         )
         command(
@@ -249,13 +249,17 @@ class TestTimelinePersistence:
         )
         after = cycles.load(table.campaign)
         assert after.current_cycle_id == before.current_cycle_id
-        assert after.cycles[:2] == before.cycles[:2]
         future = after.cycles[2]
         assert (
             future.id == before.cycles[2].id
             and future.source == before.cycles[2].source
         )
-        assert future.occurrence_id != before.occurrences[0].id
+        assert future.occurrence_id == before.occurrences[0].id
+        assert after.cycles[:3] == tuple(
+            replace(c, details=replace(c.details, phase_id=future.details.phase_id))
+            for c in before.cycles[:3]
+        )
+        assert after.cycles[3:] == before.cycles[3:]
         assert future.details.phase_id != original_phase.id
         assert (
             next(p for p in after.phases if p.id == future.details.phase_id).details
@@ -718,9 +722,9 @@ def test_cycle_selector_uses_the_edited_continuing_phase_block(table):
 
 
 class TestInterleavedRecordedPhase:
-    """Unused children before recorded activity stay with that phase's history."""
+    """Phase corrections preserve recorded activity and all cycle identities."""
 
-    def test_only_the_suffix_after_the_last_recorded_cycle_receives_new_phase_rules(
+    def test_recorded_and_unused_cycles_receive_corrected_rules_without_changing_battles(
         self, table, campaign_type
     ):
         template = replace(
@@ -752,7 +756,7 @@ class TestInterleavedRecordedPhase:
         recorded = rows(Battle, pk=battle.pk)
         case = SimpleNamespace(campaign=campaign, owner=table.owner)
         details = s.PhaseDetails(
-            "Future fourth cycle", "Future story", "Future effects"
+            "Corrected occupation", "Corrected story", "Corrected effects"
         )
         command(
             case,
@@ -761,14 +765,24 @@ class TestInterleavedRecordedPhase:
             details=details,
         )
         after = cycles.load(campaign)
-        assert after.cycles[:3] == before.cycles[:3]
-        assert rows(CampaignCycle, pk__in=prefix_ids) == prefix
         fourth = after.cycles[3]
         assert (
             fourth.id == before.cycles[3].id
             and fourth.source == before.cycles[3].source
         )
-        assert fourth.occurrence_id != before.occurrences[0].id
+        assert fourth.occurrence_id == before.occurrences[0].id
+        assert after.cycles[:4] == tuple(
+            replace(c, details=replace(c.details, phase_id=fourth.details.phase_id))
+            for c in before.cycles[:4]
+        )
+        changing = {"phase_id", "modified"}
+        assert [
+            {key: value for key, value in cycle.items() if key not in changing}
+            for cycle in rows(CampaignCycle, pk__in=prefix_ids)
+        ] == [
+            {key: value for key, value in cycle.items() if key not in changing}
+            for cycle in prefix
+        ]
         assert (
             next(p for p in after.phases if p.id == fourth.details.phase_id).details
             == details
@@ -778,4 +792,7 @@ class TestInterleavedRecordedPhase:
         assert after.current_cycle_id == before.current_cycle_id
         assert rows(Battle, pk=battle.pk) == recorded
         assert not CampaignCycleTransition.objects.filter(campaign=campaign).exists()
-        assert after.cycles[1].details.phase_id == before.phases[0].id
+        assert after.cycles[1].details.phase_id == fourth.details.phase_id
+        assert not CampaignCycleDelivery.objects.filter(
+            transition__campaign=campaign
+        ).exists()

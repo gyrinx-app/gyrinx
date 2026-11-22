@@ -230,7 +230,7 @@ def test_reordering_dated_entries_refuses_instead_of_clearing_dates(move):
     ]
 
 
-def test_complete_candidate_dates_are_validated_even_for_a_rules_edit(ids):
+def test_phase_correction_preserves_existing_dates_even_when_they_overlap(ids):
     original = dated(state())
     original = replace(
         original,
@@ -246,8 +246,12 @@ def test_complete_candidate_dates_are_validated_even_for_a_rules_edit(ids):
             for c in original.cycles
         ),
     )
-    with pytest.raises(s.ScheduleError, match="overlap"):
-        t.edit_occurrence(original, "block-3", s.PhaseDetails("Changed"), new_id=ids)
+    change = t.edit_occurrence(
+        original, "block-3", s.PhaseDetails("Changed"), new_id=ids
+    )
+    assert [
+        (c.details.starts_on, c.details.ends_on) for c in change.schedule.cycles
+    ] == [(c.details.starts_on, c.details.ends_on) for c in original.cycles]
 
 
 def test_insert_move_and_duplicate_empty_blocks_have_independent_positions(ids):
@@ -377,9 +381,6 @@ def test_removing_one_block_does_not_remove_other_occurrences_or_phase_rules():
             state, "block-1", after_occurrence_id="block-3"
         ),
         lambda state, ids: t.insert_occurrence(state, "takeover", new_id=ids),
-        lambda state, ids: t.edit_occurrence(
-            state, "block-1", s.PhaseDetails("Changed"), new_id=ids
-        ),
     ],
 )
 def test_current_and_earlier_history_cannot_be_changed_or_crossed(command, ids):
@@ -398,9 +399,6 @@ def test_current_and_earlier_history_cannot_be_changed_or_crossed(command, ids):
         lambda state, ids: t.insert_cycle(state, "block-2", new_id=ids),
         lambda state, ids: t.move_occurrence(
             state, "block-2", after_occurrence_id="block-3"
-        ),
-        lambda state, ids: t.edit_occurrence(
-            state, "block-2", s.PhaseDetails("Changed"), new_id=ids
         ),
     ],
 )
@@ -528,38 +526,43 @@ def test_unresolved_external_protection_ids_do_not_prevent_editing_unused_future
     assert change.schedule.protected_cycle_ids == original.protected_cycle_ids
 
 
-def test_partly_used_occurrence_edits_only_its_future_suffix(ids):
-    original = state(repeating=True)
-    changed_rules = s.PhaseDetails(
-        "Later occupation",
-        "Future story",
-        "Future effects",
+@pytest.mark.parametrize("current", ["cycle-1", "cycle-2", "cycle-5"])
+def test_phase_corrections_include_current_and_past_cycles_without_progressing(
+    ids, current
+):
+    original = state(current=current, repeating=True)
+    details = s.PhaseDetails(
+        "Revised occupation",
+        "Story",
+        "Effects",
         s.RewardSettings(entry_credits=s.CreditAmount(200)),
     )
-    change = t.edit_occurrence(original, "block-1", changed_rules, new_id=ids)
-    assert blocks(change.schedule)[0] == original.occurrences[0]
-    assert blocks(change.schedule)[1].id != original.occurrences[0].id
-    assert blocks(change.schedule)[1].phase_id == change.schedule.phases[-1].id
-    assert change.schedule.phases[-1].details == changed_rules
-    assert live(change.schedule)[0] == original.cycles[0]
-    assert live(change.schedule)[1].id == "cycle-2"
-    assert live(change.schedule)[1].occurrence_id == blocks(change.schedule)[1].id
-    assert live(change.schedule)[1].source == original.cycles[1].source
+    change = t.edit_occurrence(original, "block-1", details, new_id=ids)
+    selected = blocks(change.schedule)[0]
+    assert selected == replace(
+        original.occurrences[0], phase_id=change.schedule.phases[-1].id
+    )
+    assert change.schedule.phases[-1].details == details
+    assert live(change.schedule)[:2] == tuple(
+        replace(c, details=replace(c.details, phase_id=selected.phase_id))
+        for c in original.cycles[:2]
+    )
     assert live(change.schedule)[2:] == original.cycles[2:]
-    assert [c.order for c in live(change.schedule)] == [1, 2, 3, 4, 5]
+    assert change.schedule.occurrences[1:] == original.occurrences[1:]
     assert change.schedule.phases[:-1] == original.phases
     assert change.schedule.plan == original.plan
+    assert change.schedule.current_cycle_id == original.current_cycle_id
+    assert change.schedule.next_position == original.next_position
     assert change.transition is None
 
 
-def test_split_cannot_shift_the_position_of_a_later_recorded_block(ids):
-    with pytest.raises(s.ScheduleError, match="recorded activity"):
-        t.edit_occurrence(
-            state(protected={"cycle-5"}),
-            "block-1",
-            s.PhaseDetails("Future"),
-            new_id=ids,
-        )
+def test_phase_correction_keeps_a_later_recorded_block_in_place(ids):
+    original = state(protected={"cycle-5"})
+    change = t.edit_occurrence(
+        original, "block-1", s.PhaseDetails("Corrected"), new_id=ids
+    )
+    assert change.schedule.occurrences[1:] == original.occurrences[1:]
+    assert change.schedule.cycles[2:] == original.cycles[2:]
 
 
 def test_cycle_copy_distinguishes_default_after_source_from_explicit_block_start(ids):
@@ -659,7 +662,9 @@ def test_cow_keeps_archived_cycle_rules_on_the_original_archived_occurrence(ids)
     )
 
 
-def test_split_preserves_pattern_continuation_despite_explicit_legacy_cycle_fields(ids):
+def test_phase_correction_preserves_pattern_continuation_despite_explicit_legacy_cycle_fields(
+    ids,
+):
     original = s.configure(
         s.DEFAULT_TEMPLATE,
         campaign_id="legacy-pattern",
@@ -682,9 +687,12 @@ def test_split_preserves_pattern_continuation_despite_explicit_legacy_cycle_fiel
     change = t.edit_occurrence(
         original, occurrence.id, s.PhaseDetails("Future occupation"), new_id=ids
     )
-    future_block = blocks(change.schedule)[1]
+    future_block = blocks(change.schedule)[0]
     assert future_block.continues_pattern
-    assert live(change.schedule)[0] == original.cycles[0]
+    assert live(change.schedule)[0] == replace(
+        original.cycles[0],
+        details=replace(original.cycles[0].details, phase_id=future_block.phase_id),
+    )
     projected = s.project(change.schedule, limit=2)
     assert projected[0].phase_id == future_block.phase_id
     assert projected[1].phase_id == original.phases[1].id
@@ -760,7 +768,7 @@ def test_cow_keeps_the_continuation_pointer_on_its_future_rules_across_plan_revi
     )
     future = next(c for c in change.schedule.cycles if c.id == original.cycles[1].id)
     assert change.schedule.continuation_occurrence_id == future.occurrence_id
-    assert (future.occurrence_id == selected.id) is (current_position is None)
+    assert future.occurrence_id == selected.id
     assert future.source == original.cycles[1].source
     projected = s.project(change.schedule, limit=1)[0]
     assert projected.phase_id == future.details.phase_id
@@ -771,7 +779,7 @@ def test_cow_keeps_the_continuation_pointer_on_its_future_rules_across_plan_revi
     assert materialized.schedule.next_position == change.schedule.next_position + 1
     if current_position is not None:
         entered = s.advance(materialized.schedule, now=now, new_id=ids)
-        assert entered.transition.enters_phase
+        assert not entered.transition.enters_phase
         continued = s.advance(entered.schedule, now=now, new_id=ids)
         assert not continued.transition.enters_phase
 
@@ -832,33 +840,31 @@ def interleaved_history():
     )
 
 
-def test_phase_edit_keeps_the_entire_prefix_through_recorded_activity(ids):
+def test_phase_edit_corrects_rules_across_recorded_activity_without_moving_cycles(ids):
     original = interleaved_history()
     change = t.edit_occurrence(
-        original, "block-1", s.PhaseDetails("Future occupation"), new_id=ids
+        original, "block-1", s.PhaseDetails("Corrected occupation"), new_id=ids
     )
-    assert live(change.schedule)[:3] == original.cycles[:3]
-    suffix = live(change.schedule)[3]
-    assert suffix.id == original.cycles[3].id
-    assert suffix.order == original.cycles[3].order
-    assert suffix.source == original.cycles[3].source
-    assert suffix.occurrence_id != "block-1"
-    assert suffix.details.phase_id != "occupation"
+    phase_id = blocks(change.schedule)[0].phase_id
+    assert live(change.schedule)[:4] == tuple(
+        replace(c, details=replace(c.details, phase_id=phase_id))
+        for c in original.cycles[:4]
+    )
     assert live(change.schedule)[4] == original.cycles[4]
     assert change.schedule.current_cycle_id == original.current_cycle_id
     assert change.transition is None
 
 
-def test_unused_cycles_before_the_last_recorded_child_do_not_form_an_editable_suffix(
-    ids,
-):
+def test_a_fully_recorded_phase_can_be_corrected(ids):
     original = replace(
         interleaved_history(), protected_cycle_ids=frozenset({"cycle-4"})
     )
-    with pytest.raises(s.ScheduleError, match="unused future cycles"):
-        t.edit_occurrence(
-            original, "block-1", s.PhaseDetails("No future suffix"), new_id=ids
-        )
+    change = t.edit_occurrence(
+        original, "block-1", s.PhaseDetails("Corrected phase"), new_id=ids
+    )
+    assert change.schedule.phases[-1].details.name == "Corrected phase"
+    assert len(change.updated) == 4
+    assert change.transition is None
 
 
 def test_editing_a_future_block_after_removal_keeps_archived_cycles_and_rules_exact(
@@ -943,3 +949,28 @@ def test_cow_replaces_a_block_with_archived_children_and_continues_its_generated
         next(c for c in planned.schedule.cycles if c.id == historical.id) == historical
     )
     assert len(blocks(planned.schedule)) == len(blocks(removed))
+
+
+def test_current_phase_correction_keeps_archived_children_and_their_rules(ids):
+    original = state(repeating=True)
+    historical = replace(
+        original.cycles[1], id="archived-child", archived=True, source=s.CycleSource()
+    )
+    original = replace(original, cycles=original.cycles + (historical,))
+    change = t.edit_occurrence(
+        original, "block-1", s.PhaseDetails("Corrected"), new_id=ids
+    )
+    assert (
+        next(c for c in change.schedule.cycles if c.id == historical.id) == historical
+    )
+    assert next(o for o in change.schedule.occurrences if o.id == "block-1") == replace(
+        original.occurrences[0], archived=True
+    )
+    assert (
+        next(p for p in change.schedule.phases if p.id == "occupation")
+        == original.phases[0]
+    )
+    assert change.schedule.current_cycle_id == original.current_cycle_id
+    assert change.schedule.current.order == original.current.order
+    assert change.transition is None
+    assert len(blocks(change.schedule)) == len(blocks(original))
