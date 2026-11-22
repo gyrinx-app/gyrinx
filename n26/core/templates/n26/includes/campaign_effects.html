@@ -1,7 +1,29 @@
 {% load react %}
 {% react_host "campaign-effects" effects %}
-    <details class="text-sm">
-        <summary class="cursor-pointer font-medium focus-ring">{{ effects.label }}</summary>
-        <p class="mt-2 whitespace-pre-line [overflow-wrap:anywhere]">{{ effects.effects }}</p>
-    </details>
+    <button type="button"
+            popovertarget="{{ panel_id }}"
+            class="cursor-pointer text-sm underline decoration-dashed underline-offset-4 focus-ring">{{ effects.label }}</button>
+    <div id="{{ panel_id }}"
+         popover="auto"
+         role="dialog"
+         aria-label="{{ effects.label }}"
+         tabindex="-1"
+         class="max-h-[min(75dvh,calc(100%-1rem))] w-[min(18rem,calc(100vw-1rem))] overflow-y-auto rounded-box border border-box-border bg-surface p-4 text-sm text-ink-900 shadow-xl dark:bg-ink-900 dark:text-ink-100"
+         style="inset: auto;
+                position-area: top span-right;
+                position-try-fallbacks: flip-block, flip-inline;
+                margin: 0.5rem 0">
+        <div class="mb-2 flex items-center justify-between gap-3">
+            <h3 class="font-semibold">{{ effects.label }}</h3>
+            <c-ui.button type="button"
+                         size="xs"
+                         variant="ghost"
+                         popovertarget="{{ panel_id }}"
+                         popovertargetaction="hide"
+                         aria-label="Close {{ effects.label|lower }}">
+                <c-n26.icon name="x" class="size-4" />
+            </c-ui.button>
+        </div>
+        <p class="whitespace-pre-line [overflow-wrap:anywhere]">{{ effects.effects }}</p>
+    </div>
 {% endreact_host %}

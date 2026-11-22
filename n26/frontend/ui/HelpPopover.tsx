@@ -31,6 +31,7 @@ export function HelpPopover({
     triggerContent,
     inline = false,
     clampHeight = false,
+    placement = "bottom",
     children,
 }: {
     label: string;
@@ -44,6 +45,8 @@ export function HelpPopover({
     inline?: boolean;
     /** Keep long content scrollable within the available viewport space. */
     clampHeight?: boolean;
+    /** Preferred side, with a fallback when the viewport has less room. */
+    placement?: "top" | "bottom";
     children: ReactNode;
 }) {
     const look = TONES[tone];
@@ -72,6 +75,7 @@ export function HelpPopover({
         width: 288,
         gap: 8,
         clampHeight,
+        preferredSide: placement,
     });
 
     function onClick(event: MouseEvent<HTMLButtonElement>) {
