@@ -1042,17 +1042,16 @@ def apply(plan, actor=None):
 
     report = list(plan.preview())
     with transaction.atomic():
-        list(
-            Gang.objects.select_for_update()
-            .filter(pk__in=[gang.pk for gang in plan.test_gangs])
-            .order_by("pk")
-        )
-        # The campaigns as well: joining one takes a key-share lock on
-        # its row, which this conflicts with, so no player can join
-        # between the second reading and the delete.
+        # Campaign operations lock the campaign before its gangs. The campaign
+        # lock also prevents new memberships while the plan is rechecked.
         list(
             Campaign.objects.select_for_update()
             .filter(pk__in=[campaign.pk for campaign in plan.test_campaigns])
+            .order_by("pk")
+        )
+        list(
+            Gang.objects.select_for_update()
+            .filter(pk__in=[gang.pk for gang in plan.test_gangs])
             .order_by("pk")
         )
         for label, pk in plan.targets:
