@@ -1378,6 +1378,27 @@ class TestPhaseCredits:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("tracking", [True, False])
+    def test_gangs_joining_after_play_stops_need_a_grant(
+        self, downtime, campaign, owner, player, gang_type, opened, tracking
+    ):
+        from n26.core.phase_credits import offers
+
+        active = found_gang("Active gang", gang_type, owner=player, budget=1000)
+        join_campaign(active, campaign)
+        if not tracking:
+            opened.delete()
+        with campaign_operation(campaign, actor=owner) as act:
+            act.set_status(
+                Campaign.Status.PRE_CAMPAIGN
+                if tracking
+                else Campaign.Status.POST_CAMPAIGN
+            )
+        late = found_gang("Late gang", gang_type, owner=player, budget=1000)
+        join_campaign(late, campaign)
+        assert offers(campaign, active)[0].eligible
+        assert not offers(campaign, late)[0].eligible
+
     def test_recurring_downtimes_keep_distinct_awards_with_constant_read_queries(
         self, downtime, campaign, owner, player, gang_type
     ):

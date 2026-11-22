@@ -5,12 +5,17 @@ from dataclasses import dataclass
 from random import SystemRandom
 
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 
 from n26 import flags
 from n26.core.cycle_context import CycleContext
 from n26.core.cycle_data import credits_from_data
-from n26.core.models import CampaignCycleTransition, LedgerEvent, PhaseCreditReceipt
+from n26.core.models import (
+    CampaignCycleTransition,
+    CampaignEvent,
+    LedgerEvent,
+    PhaseCreditReceipt,
+)
 from n26.core.operations import Refusal, operation
 from n26.core.schedule import CreditAmount
 
@@ -53,11 +58,20 @@ def offers(campaign, gang):
 
 
 def _boundaries(campaign):
+    # A rollback or a status change with cycle tracking disabled can end play
+    # without recording a cycle transition. Status events keep the old and new labels.
+    stopped = campaign.events.filter(
+        kind=CampaignEvent.Kind.STATUS_CHANGED,
+        note__startswith="In progress → ",
+        created__gt=OuterRef("occurred_at"),
+    ).order_by("created")
     return list(
         campaign.cycle_transitions.filter(
             Q(receipt__enters_phase=True)
             | Q(kind=CampaignCycleTransition.Kind.FINISHED)
-        ).order_by("occurred_at", "id")
+        )
+        .annotate(play_ended=Subquery(stopped.values("created")[:1]))
+        .order_by("occurred_at", "id")
     )
 
 
@@ -67,6 +81,8 @@ def _offers(boundaries, memberships):
         if entry.kind == CampaignCycleTransition.Kind.FINISHED:
             continue
         end = boundaries[index + 1].occurred_at if index + 1 < len(boundaries) else None
+        if entry.play_ended is not None and (end is None or entry.play_ended < end):
+            end = entry.play_ended
         phase = entry.receipt.get("current_phase", {})
         if not isinstance(phase, dict):
             continue
