@@ -32,6 +32,7 @@ from n26.core.models.cycle import (
     CampaignPlan,
     CampaignSchedule,
     CampaignScheduleTemplate,
+    PhaseCreditReceipt,
 )
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.equip_receipt import EquipReceipt
@@ -83,6 +84,7 @@ __all__ = [
     "CampaignPlan",
     "CampaignSchedule",
     "CampaignScheduleTemplate",
+    "PhaseCreditReceipt",
     "CampaignMembership",
     "CampaignParticipant",
     "ChosenProfileOption",

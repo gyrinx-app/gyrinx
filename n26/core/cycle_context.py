@@ -37,6 +37,13 @@ class CycleContext:
         return cycle
 
 
+@dataclass(frozen=True)
+class PhaseEntryContext(CycleContext):
+    """A recorded phase entry retains its cycle after archival."""
+
+    entry_id: str
+
+
 def lock_campaign(context, actor):
     """Called inside the operation transaction, before any gang is locked."""
     if not isinstance(context, CycleContext):
@@ -54,7 +61,13 @@ def lock_campaign(context, actor):
         raise Refusal("Select a cycle from this campaign.")
     cycle = context.resolve()
     if cycle.archived or cycle.phase.archived:
-        raise Refusal("Select a cycle that has not been deleted.")
+        if (
+            not isinstance(context, PhaseEntryContext)
+            or not cycle.starting_transitions.filter(
+                pk=context.entry_id, campaign_id=identity, receipt__enters_phase=True
+            ).exists()
+        ):
+            raise Refusal("Select a cycle that has not been deleted.")
     return cycle
 
 

@@ -244,6 +244,8 @@ def gang_table_props(sheet):
                 "credits": None if line.credits_unlimited else line.credits,
                 "wealth": line.wealth,
                 "creditsHref": line.credits_href,
+                "phaseCreditsHref": line.phase_credits_href,
+                "phaseCreditsLabel": line.phase_credits_label,
                 "removeHref": line.remove_href,
                 "overBudget": line.over_budget,
                 "sortValues": gang_sort_values(sheet, line),

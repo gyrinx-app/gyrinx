@@ -5,7 +5,7 @@ point.
 from django.urls import include, path
 
 from n26.core import views
-from n26.core.views import battle_editing, cycle_planning, options
+from n26.core.views import battle_editing, cycle_planning, options, phase_credits
 from n26.core.views.skills import skills_command
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
@@ -44,6 +44,11 @@ urlpatterns = [
     path("campaigns/", views.campaigns, name="n26-campaigns"),
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # Match the literal new route before the string primary-key route.
+    path(
+        "campaigns/<str:pk>/gangs/<str:gang_pk>/phase-credits/",
+        phase_credits.phase_awards,
+        name="n26-phase-credits",
+    ),
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
     path(
         "campaigns/<str:pk>/cycles/",

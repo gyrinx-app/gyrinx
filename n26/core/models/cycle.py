@@ -322,6 +322,9 @@ class CampaignCycleTransition(Base):
     actor = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, related_name="+"
     )
+    phase_occurrence = models.ForeignKey(
+        CampaignPhaseOccurrence, on_delete=models.RESTRICT, null=True, related_name="+"
+    )
     occurred_at = models.DateTimeField()
     receipt = models.JSONField(default=dict)
 
@@ -373,4 +376,21 @@ class CampaignCycleDelivery(Base):
                 condition=models.Q(delivered_at__isnull=True),
                 name="cycle_delivery_pending_idx",
             ),
+        ]
+
+
+class PhaseCreditReceipt(Base):
+    """One gang's settlement of the award recorded at phase entry."""
+
+    entry = models.ForeignKey(CampaignCycleTransition, on_delete=models.CASCADE)
+    gang = models.ForeignKey("n26.Gang", on_delete=models.CASCADE)
+    actor = models.ForeignKey("auth.User", null=True, on_delete=models.SET_NULL)
+    payment = models.OneToOneField("n26.LedgerEvent", on_delete=models.RESTRICT)
+    method = models.CharField(max_length=12)
+    note = models.CharField(max_length=255, blank=True)
+    rolls = models.JSONField(default=list)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["entry", "gang"], name="phase_credit_once")
         ]

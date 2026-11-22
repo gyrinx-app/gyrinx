@@ -44,7 +44,14 @@ def destroy_campaign(campaign):
     """
     from django.db import transaction
 
+    from n26.core.models import Campaign, LedgerEvent
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():
+        Campaign.objects.select_for_update().get(pk=campaign.pk)
+        # A gang keeps the value of its award after the campaign and its cycles are destroyed.
+        LedgerEvent.objects.filter(
+            cycle__campaign=campaign,
+            phasecreditreceipt__entry__campaign=campaign,
+        ).update(cycle=None)
         campaign.delete()

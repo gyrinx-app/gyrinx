@@ -1460,3 +1460,323 @@ def test_unchanged_schedule_save_keeps_deletion_continuation(
     assert result.revision == state.revision
     assert cycles.load(campaign) == state
     assert s.project(cycles.load(campaign)) == following
+
+
+class TestPhaseCredits:
+    @pytest.fixture
+    def downtime(self, configured, campaign, owner):
+        phase = configured.phases[1]
+        cycles.edit_phase(
+            campaign,
+            actor=owner,
+            phase_id=phase.id,
+            details=replace(
+                phase.details,
+                rewards=s.RewardSettings(
+                    entry_credits=s.CreditAmount(25, s.DiceAmount(2, 3, 10))
+                ),
+            ),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        before = start_campaign(campaign, owner)
+        for _ in range(3):
+            advance(campaign, owner, before)
+            before = cycles.load(campaign)
+        return before
+
+    def test_join_during_downtime_then_collect_afterwards_once(
+        self, downtime, campaign, owner, player, gang_type, client
+    ):
+        from django.urls import reverse
+
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.phase_credits import offers
+
+        gang = found_gang("Ash choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        advance(campaign, owner, downtime)
+        (award,) = offers(campaign, gang)
+        assert award.eligible
+        url = reverse("n26-phase-credits", args=[campaign.pk, gang.pk])
+        client.force_login(player)
+        player_props = client.get(url).context["props"]
+        assert player_props["awards"][0]["eligible"]
+        data = {"entry": str(award.entry.pk), "method": "collect"}
+        assert client.post(url, data).status_code == 200
+        client.force_login(owner)
+        assert (
+            client.get(url).context["props"]["recoveryKey"]
+            != player_props["recoveryKey"]
+        )
+        assert client.post(url, data).status_code == 200
+        receipt = PhaseCreditReceipt.objects.get()
+        assert receipt.actor == player and sum(receipt.rolls) == 2
+        amount = 25 + sum(n * i for i, n in enumerate(receipt.rolls, 1)) * 10
+        gang.refresh_from_db()
+        assert gang.credits == 1000 + amount
+        assert receipt.payment.cycle_id == award.entry.current_cycle_id
+        assert_reconciled(gang)
+
+    def test_late_join_requires_noted_grant_or_matching_manual_payment(
+        self, downtime, campaign, owner, player, gang_type, client
+    ):
+        from django.urls import reverse
+
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers
+
+        advance(campaign, owner, downtime)
+        for method in ["grant", "paid"]:
+            gang = found_gang(method, gang_type, owner=player, budget=1000)
+            join_campaign(gang, campaign)
+            (award,) = offers(campaign, gang)
+            assert not award.eligible
+            url = reverse("n26-phase-credits", args=[campaign.pk, gang.pk])
+            data = {"entry": str(award.entry.pk), "method": method}
+            client.force_login(player)
+            assert client.get(url).context["props"]["awards"] == []
+            assert client.post(url, data).status_code == 422
+            client.force_login(owner)
+            assert client.post(url, data).status_code == 422
+            data["note"] = "Agreed catch-up payment"
+            if method == "paid":
+                with operation(gang, actor=owner) as op:
+                    payment = op.adjust_credits(65, "Downtime")
+                data["payment"] = str(payment.pk)
+            assert client.post(url, data).status_code == 200
+            receipt = PhaseCreditReceipt.objects.get(gang=gang)
+            assert receipt.method == method and receipt.note == data["note"]
+            gang.refresh_from_db()
+            if method == "paid":
+                assert gang.credits == 1065 and receipt.payment == payment
+            assert_reconciled(gang)
+
+    def test_a_recorded_award_survives_cycle_archival(
+        self, downtime, campaign, player, owner, gang_type
+    ):
+        from n26.core.cycle_context import CycleContext
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        (award,) = offers(campaign, gang)
+        advance(campaign, owner, downtime)
+        cycle = award.entry.current_cycle
+        cycle.archived = True
+        cycle.save(update_fields=["archived"])
+        with pytest.raises(Refusal, match="deleted"):
+            with operation(
+                gang, actor=player, cycle_context=CycleContext.from_cycle(cycle)
+            ):
+                pass
+        receipt = settle(campaign, gang, player, award.entry, "collect")
+        assert receipt.payment.cycle_id == cycle.pk
+        assert settle(campaign, gang, player, award.entry, "collect") == receipt
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_destroying_a_gang_removes_the_phase_receipt_and_its_payment(
+        self, downtime, campaign, player, gang_type
+    ):
+        from n26.core.deletion import destroy_gang
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        (award,) = offers(campaign, gang)
+        receipt = settle(campaign, gang, player, award.entry, "collect")
+        destroy_gang(gang)
+        assert not PhaseCreditReceipt.objects.filter(pk=receipt.pk).exists()
+        assert not LedgerEvent.objects.filter(pk=receipt.payment_id).exists()
+
+    @pytest.mark.parametrize("method", ["collect", "grant", "paid"])
+    def test_destroying_a_campaign_preserves_its_gang_payment(
+        self, downtime, campaign, owner, player, gang_type, method
+    ):
+        from n26.core.deletion import destroy_campaign
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        payment_id = ""
+        if method == "paid":
+            with operation(gang, actor=owner) as op:
+                payment_id = str(op.adjust_credits(65, "Downtime").pk)
+        (award,) = offers(campaign, gang)
+        receipt = settle(
+            campaign,
+            gang,
+            owner,
+            award.entry,
+            method,
+            "Paid at the table",
+            payment_id,
+        )
+        payment = receipt.payment
+        destroy_campaign(campaign)
+        assert not PhaseCreditReceipt.objects.filter(pk=receipt.pk).exists()
+        payment.refresh_from_db()
+        assert payment.campaign_id is None and payment.gang_id == gang.pk
+        gang.refresh_from_db()
+        assert payment.cycle_id is None
+        assert gang.credits == 1000 - payment.credits_delta
+        assert_reconciled(gang)
+
+    @pytest.mark.django_db(transaction=True)
+    def test_simultaneous_collections_share_the_roll_and_payment(
+        self, downtime, campaign, owner, player, gang_type
+    ):
+        from n26.core.phase_credits import offers, settle
+
+        gang = found_gang("Ash choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        (award,) = offers(campaign, gang)
+
+        def collect():
+            local_gang = type(gang).objects.get(pk=gang.pk)
+            return settle(campaign, local_gang, player, award.entry, "collect")
+
+        a, b = concurrent(collect)
+        assert a == b and a.payment_id == b.payment_id
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("tracking", [True, False])
+    def test_gangs_joining_after_play_stops_need_a_grant(
+        self, downtime, campaign, owner, player, gang_type, opened, tracking
+    ):
+        from n26.core.phase_credits import offers
+
+        active = found_gang("Active gang", gang_type, owner=player, budget=1000)
+        join_campaign(active, campaign)
+        if not tracking:
+            opened.delete()
+        with campaign_operation(campaign, actor=owner) as act:
+            act.set_status(
+                Campaign.Status.PRE_CAMPAIGN
+                if tracking
+                else Campaign.Status.POST_CAMPAIGN
+            )
+        late = found_gang("Late gang", gang_type, owner=player, budget=1000)
+        join_campaign(late, campaign)
+        assert offers(campaign, active)[0].eligible
+        assert not offers(campaign, late)[0].eligible
+
+    def test_resuming_without_tracking_reopens_the_original_phase_award(
+        self, downtime, campaign, owner, player, gang_type, opened
+    ):
+        from n26.core.phase_credits import offers, settle
+
+        active = found_gang("Active gang", gang_type, owner=player, budget=1000)
+        join_campaign(active, campaign)
+        (award,) = offers(campaign, active)
+        receipt = settle(campaign, active, player, award.entry, "collect")
+        opened.delete()
+        for status in [Campaign.Status.PRE_CAMPAIGN, Campaign.Status.IN_PROGRESS]:
+            with campaign_operation(campaign, actor=owner) as act:
+                act.set_status(status)
+        late = found_gang("Late gang", gang_type, owner=player, budget=1000)
+        join_campaign(late, campaign)
+        FeatureFlag.objects.create(
+            slug=CYCLE_TRACKING,
+            name="Campaign cycles",
+            availability=Availability.EVERYONE,
+        )
+        (reopened,) = offers(campaign, late)
+        assert reopened.eligible and reopened.entry == award.entry
+        assert settle(campaign, active, player, reopened.entry, "collect") == receipt
+        assert (
+            settle(campaign, late, player, reopened.entry, "collect").entry
+            == award.entry
+        )
+
+    def test_recurring_downtimes_keep_distinct_awards_with_constant_read_queries(
+        self, downtime, campaign, owner, player, gang_type
+    ):
+        from n26.core.phase_credits import offers
+
+        gang = found_gang("Ash choir", gang_type, owner=player, budget=1000)
+        join_campaign(gang, campaign)
+        with CaptureQueriesContext(connection) as first:
+            (original,) = offers(campaign, gang)
+        before = downtime
+        for _ in range(7):
+            advance(campaign, owner, before)
+            before = cycles.load(campaign)
+        with CaptureQueriesContext(connection) as repeated:
+            earlier, later = offers(campaign, gang)
+        assert earlier.entry == original.entry and later.entry != original.entry
+        assert earlier.eligible and later.eligible
+        assert len(first) == len(repeated)
+
+    def test_campaign_table_shows_collection_receipts_and_arbitrator_grants(
+        self, downtime, campaign, owner, player, gang_type
+    ):
+        from n26.core.phase_credits import offers, settle, table_actions
+
+        active = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        join_campaign(active, campaign)
+        ids = [str(active.pk)]
+        with CaptureQueriesContext(connection) as one:
+            assert (
+                table_actions(campaign, ids, arbitrator=False)[ids[0]]
+                == "Collect phase credits"
+            )
+        (award,) = offers(campaign, active)
+        settle(campaign, active, player, award.entry, "collect")
+        advance(campaign, owner, downtime)
+        late = found_gang("Furnace Hounds", gang_type, owner=player, budget=1000)
+        join_campaign(late, campaign)
+        ids.append(str(late.pk))
+        with CaptureQueriesContext(connection) as two:
+            assert table_actions(campaign, ids, arbitrator=True) == {
+                ids[0]: "View phase receipts",
+                ids[1]: "Review phase credits",
+            }
+        assert len(one) == len(two)
+        assert table_actions(campaign, ids, arbitrator=False) == {
+            ids[0]: "View phase receipts"
+        }
+        active.refresh_from_db()
+        assert_reconciled(active)
+
+    def test_another_gang_payment_cannot_settle_an_award_and_feature_access_is_required(
+        self, downtime, campaign, owner, player, gang_type, opened, client
+    ):
+        from django.urls import reverse
+
+        from n26.core.models import PhaseCreditReceipt
+        from n26.core.operations import operation
+        from n26.core.phase_credits import offers
+
+        gang = found_gang("Ash Choir", gang_type, owner=player, budget=1000)
+        other = found_gang("Furnace Hounds", gang_type, owner=player, budget=1000)
+        for member in [gang, other]:
+            join_campaign(member, campaign)
+        with operation(other, actor=owner) as op:
+            payment = op.adjust_credits(55, "Downtime payment")
+        (award,) = offers(campaign, gang)
+        url = reverse("n26-phase-credits", args=[campaign.pk, gang.pk])
+        client.force_login(owner)
+        data = {
+            "entry": str(award.entry.pk),
+            "method": "paid",
+            "payment": str(payment.pk),
+            "note": "Paid earlier",
+        }
+        assert client.post(url, data).status_code == 422
+        client.force_login(User.objects.create_user("other-player"))
+        assert client.get(url).status_code == 404
+        client.force_login(player)
+        opened.delete()
+        assert client.post(url, {**data, "method": "collect"}).status_code == 404
+        assert not PhaseCreditReceipt.objects.exists()
+        gang.refresh_from_db()
+        assert gang.credits == 1000
+        assert_reconciled(gang)
