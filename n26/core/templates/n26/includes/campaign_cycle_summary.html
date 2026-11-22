@@ -44,6 +44,9 @@
                     {% if cycle_summary.next_phase %}
                         <p class="text-sm text-muted">{{ cycle_summary.cycles_until_phase }} cycle{{ cycle_summary.cycles_until_phase|pluralize }} until {{ cycle_summary.next_phase }}</p>
                     {% endif %}
+                    {% if cycle_summary.phase_effects %}
+                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.phase_effects_props only %}
+                    {% endif %}
                 </dd>
             </div>
             <div class="min-w-0 border-t border-box-border pt-4 md:border-t-0 md:pt-0">
@@ -65,6 +68,9 @@
                             <dt class="text-muted">End date</dt>
                             <dd>{% if cycle_summary.ends_on %}<time datetime="{{ cycle_summary.ends_on|date:'Y-m-d' }}">{{ cycle_summary.ends_on|date:"j M Y" }}</time>{% else %}Not set{% endif %}</dd>
                         </dl>
+                    {% endif %}
+                    {% if cycle_summary.cycle_effects %}
+                        {% include "n26/includes/campaign_effects.html" with effects=cycle_summary.cycle_effects_props only %}
                     {% endif %}
                 </dd>
             </div>

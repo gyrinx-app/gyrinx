@@ -1,0 +1,7 @@
+{% load react %}
+{% react_host "campaign-effects" effects %}
+    <details class="text-sm">
+        <summary class="cursor-pointer font-medium focus-ring">{{ effects.label }}</summary>
+        <p class="mt-2 whitespace-pre-line [overflow-wrap:anywhere]">{{ effects.effects }}</p>
+    </details>
+{% endreact_host %}

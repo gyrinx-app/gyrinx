@@ -1018,6 +1018,63 @@ class TestFixedPlanConversion:
 
 
 class TestDisplayReads:
+    @pytest.mark.parametrize("reader", [False, True])
+    def test_dashboard_effects_are_collapsed_plain_text_for_arbitrators_and_readers(
+        self, client, campaign, configured, reader
+    ):
+        phase = configured.current_phase
+        phase_effects = "<script>alert('phase')</script>\nApply after each battle."
+        cycle_effects = "<img src=x onerror=alert('cycle')>\nUse the cycle rule."
+        cycles.edit_phase(
+            campaign,
+            actor=campaign.owner,
+            phase_id=phase.id,
+            details=replace(phase.details, effects=phase_effects),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        state = cycles.load(campaign)
+        cycles.edit_cycle(
+            campaign,
+            actor=campaign.owner,
+            target=s.SavedCycleRef(state.current_cycle_id),
+            details=replace(state.current.details, effects=cycle_effects),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        if reader:
+            client.force_login(User.objects.create_user("effects-reader"))
+        response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        card = page.select_one("#campaign-cycle-summary")
+        hosts = card.select('[data-react-name="campaign-effects"]')
+        assert len(hosts) == 2
+        for host, label, effects in zip(
+            hosts,
+            ["Phase effects", "Cycle effects"],
+            [phase_effects, cycle_effects],
+            strict=True,
+        ):
+            assert json.loads(page.find(id=host["data-react-props"]).string) == {
+                "label": label,
+                "effects": effects,
+            }
+            disclosure = host.select_one("details")
+            assert not disclosure.has_attr("open")
+            assert disclosure.select_one("summary").get_text(strip=True) == label
+            assert disclosure.select_one("p").get_text() == effects
+            assert not disclosure.select("script, img")
+
+    def test_dashboard_omits_empty_effect_disclosures(
+        self, client, campaign, configured
+    ):
+        response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+        card = BeautifulSoup(response.content, "html.parser").select_one(
+            "#campaign-cycle-summary"
+        )
+        assert not card.select('[data-react-name="campaign-effects"]')
+
     def test_dashboard_card_counts_the_current_phase_and_exposes_existing_owner_workflows(
         self, client, campaign, configured
     ):
