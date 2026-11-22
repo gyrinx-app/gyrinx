@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from random import SystemRandom
 
 from django.core.exceptions import ValidationError
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Q
 
 from n26 import flags
 from n26.core.cycle_context import PhaseEntryContext
@@ -54,35 +54,47 @@ def offers(campaign, gang):
     memberships = list(
         campaign.memberships.filter(gang=gang).values_list("created", "left")
     )
-    return _offers(_boundaries(campaign), memberships)
+    return _offers(_phase_windows(campaign), memberships)
 
 
-def _boundaries(campaign):
-    # A rollback or a status change with cycle tracking disabled can end play
-    # without recording a cycle transition. Status events keep the old and new labels.
-    stopped = campaign.events.filter(
-        kind=CampaignEvent.Kind.STATUS_CHANGED,
-        note__startswith="In progress → ",
-        created__gt=OuterRef("occurred_at"),
-    ).order_by("created")
-    return list(
-        campaign.cycle_transitions.filter(
-            Q(receipt__enters_phase=True)
-            | Q(kind=CampaignCycleTransition.Kind.FINISHED)
-        )
-        .annotate(play_ended=Subquery(stopped.values("created")[:1]))
-        .order_by("occurred_at", "id")
+def _phase_windows(campaign):
+    entries = campaign.cycle_transitions.filter(
+        Q(receipt__enters_phase=True) | Q(kind=CampaignCycleTransition.Kind.FINISHED)
+    ).order_by("occurred_at", "id")
+    changes = [
+        (e.occurred_at, e, e.kind != CampaignCycleTransition.Kind.FINISHED)
+        for e in entries
+    ]
+    if not changes:
+        return []
+    # Status changes can stop and resume the same phase without cycle tracking.
+    # Their notes preserve the previous and next status labels.
+    statuses = campaign.events.filter(kind=CampaignEvent.Kind.STATUS_CHANGED).order_by(
+        "created", "id"
     )
+    changes.extend(
+        (at, None, note.endswith(" → In progress"))
+        for at, note in statuses.values_list("created", "note")
+    )
+    windows = []
+    current = start = None
+    for at, transition, playing in sorted(changes, key=lambda change: change[0]):
+        if current is not None and start is not None and start < at:
+            windows.append((current, start, at))
+        if (
+            transition is not None
+            and transition.kind != CampaignCycleTransition.Kind.FINISHED
+        ):
+            current = transition
+        start = at if playing else None
+    if current is not None and start is not None:
+        windows.append((current, start, None))
+    return windows
 
 
-def _offers(boundaries, memberships):
+def _offers(windows, memberships):
     awards = {}
-    for index, entry in enumerate(boundaries):
-        if entry.kind == CampaignCycleTransition.Kind.FINISHED:
-            continue
-        end = boundaries[index + 1].occurred_at if index + 1 < len(boundaries) else None
-        if entry.play_ended is not None and (end is None or entry.play_ended < end):
-            end = entry.play_ended
+    for entry, start, end in windows:
         phase = entry.receipt.get("current_phase", {})
         if not isinstance(phase, dict):
             continue
@@ -94,7 +106,7 @@ def _offers(boundaries, memberships):
             terms = credits_from_data(phase.get("rewards", {}).get("entry_credits", {}))
             awards[key] = Offer(entry, phase.get("name", ""), terms)
         awards[key].eligible |= entry.phase_occurrence_id is not None and any(
-            (end is None or joined < end) and (left is None or left > entry.occurred_at)
+            (end is None or joined < end) and (left is None or left > start)
             for joined, left in memberships
         )
     return [award for award in awards.values() if award.terms.fixed or award.terms.dice]
@@ -181,8 +193,8 @@ def settle(campaign, gang, actor, entry, method, note="", payment_id=""):
 
 def table_actions(campaign, gang_ids, *, arbitrator):
     """Use the same eligibility windows for every visible gang in the campaign table."""
-    boundaries = _boundaries(campaign)
-    if not boundaries:
+    windows = _phase_windows(campaign)
+    if not windows:
         return {}
     memberships = defaultdict(list)
     for gang_id, joined, left in campaign.memberships.filter(
@@ -198,7 +210,7 @@ def table_actions(campaign, gang_ids, *, arbitrator):
     for gang_id, periods in memberships.items():
         unpaid = [
             offer
-            for offer in _offers(boundaries, periods)
+            for offer in _offers(windows, periods)
             if offer.entry.pk not in paid[gang_id]
         ]
         if any(offer.eligible for offer in unpaid):
