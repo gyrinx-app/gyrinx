@@ -467,6 +467,51 @@ class TestRepeatingAndReplacement:
 
 
 class TestTransitions:
+    @pytest.mark.parametrize("mode", ["fixed", "repeating"])
+    def test_recorded_dates_keep_created_updated_and_transition_cycles_consistent(
+        self, ids, mode
+    ):
+        state = s.configure(
+            s.DEFAULT_TEMPLATE,
+            campaign_id="campaign",
+            current_position=0,
+            mode=mode,
+            new_id=ids,
+        ).schedule
+        started = s.record_transition_dates(s.start(state, now=NOW), on=NOW.date())
+        assert started.updated == (started.schedule.current,)
+        assert started.transition.current_cycle == started.schedule.current
+        changed = s.record_transition_dates(
+            s.advance(started.schedule, now=LATER, new_id=ids), on=LATER.date()
+        )
+        assert changed.transition.previous_cycle == changed.schedule.cycles[0]
+        assert changed.transition.current_cycle == changed.schedule.current
+        assert changed.schedule.cycles[0].details.ends_on == LATER.date()
+        if mode == "fixed":
+            assert changed.updated == changed.schedule.cycles[:2]
+            assert changed.created == ()
+        else:
+            assert changed.updated == (changed.schedule.cycles[0],)
+            assert changed.created == (changed.schedule.current,)
+
+    @pytest.mark.parametrize("offset", [-1, 0, 1])
+    def test_only_a_shared_end_and_start_day_is_a_valid_date_boundary(
+        self, ids, offset
+    ):
+        state = configured(ids)
+        first, second = state.cycles[:2]
+        second = replace(
+            second,
+            details=replace(
+                second.details, starts_on=first.details.ends_on + timedelta(days=offset)
+            ),
+        )
+        if offset < 0:
+            with pytest.raises(s.ScheduleError, match="overlap"):
+                s.validate_cycle_dates((first, second))
+        else:
+            s.validate_cycle_dates((first, second))
+
     def test_advancing_into_a_saved_cycle_consumes_no_plan_position(self, ids):
         schedule = configured(ids, mode="repeating")
         third = s.project(schedule, limit=2)[-1]

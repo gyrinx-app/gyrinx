@@ -1,7 +1,7 @@
 """Inclusive calendar ranges are projected, then retained with saved identities."""
 
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -142,7 +142,7 @@ def test_initial_calendar_preserves_saved_missing_endpoints():
     ]
 
 
-def test_setup_does_not_derive_planning_dates_from_a_transition_timestamp():
+def test_running_setup_dates_only_the_started_cycle_without_a_calendar():
     from datetime import UTC, datetime
 
     state = s.configure(
@@ -153,7 +153,8 @@ def test_setup_does_not_derive_planning_dates_from_a_transition_timestamp():
         now=datetime(2026, 11, 1, tzinfo=UTC),
     ).schedule
     assert state.calendar is None
-    assert state.current.details.starts_on is state.current.details.ends_on is None
+    assert state.current.details.starts_on == date(2026, 11, 1)
+    assert state.current.details.ends_on is None
 
 
 @pytest.mark.parametrize(
@@ -203,12 +204,12 @@ def test_saving_a_projected_cycle_persists_its_prefix_dates_without_advancing():
 @pytest.mark.parametrize(
     ("start", "end"),
     [
-        (date(2026, 11, 7), date(2026, 11, 10)),
+        (date(2026, 11, 6), date(2026, 11, 10)),
         (date(2026, 11, 1), date(2026, 11, 7)),
         (date(2026, 10, 30), date(2026, 11, 30)),
     ],
 )
-def test_overlapping_or_shared_end_dates_are_refused_across_saved_cycles(start, end):
+def test_interior_overlaps_are_refused_across_saved_cycles(start, end):
     state = configured(current=2)
     selected = state.cycles[1]
     with pytest.raises(s.ScheduleError, match="overlap"):
@@ -217,6 +218,107 @@ def test_overlapping_or_shared_end_dates_are_refused_across_saved_cycles(start, 
             s.SavedCycleRef(selected.id),
             replace(selected.details, starts_on=start, ends_on=end),
         )
+
+
+def test_a_saved_cycle_can_start_on_the_previous_cycles_end_day():
+    state = configured(current=2)
+    selected = state.cycles[1]
+    changed = s.edit_cycle(
+        state,
+        s.SavedCycleRef(selected.id),
+        replace(
+            selected.details, starts_on=date(2026, 11, 7), ends_on=date(2026, 11, 10)
+        ),
+    )
+    assert changed.schedule.cycles[1].details.starts_on == date(2026, 11, 7)
+
+
+@pytest.mark.parametrize("saved_successor", [False, True])
+def test_end_dates_can_share_the_start_of_saved_or_projected_successors(
+    saved_successor,
+):
+    state = configured(current=1 if saved_successor else 0)
+    selected = state.cycles[0]
+    changed = s.edit_cycle(
+        state,
+        s.SavedCycleRef(selected.id),
+        replace(selected.details, ends_on=date(2026, 11, 8)),
+    )
+    assert changed.schedule.cycles[0].details.ends_on == date(2026, 11, 8)
+
+
+def test_advancement_dates_the_previous_end_before_validating_a_projected_successor():
+    state = configured()
+    first = replace(
+        state.current,
+        details=replace(
+            state.current.details, starts_on=date(2026, 11, 8), ends_on=None
+        ),
+    )
+    state = replace(state, cycles=(first,), status="in_progress")
+    changed = s.advance(state, now=datetime(2026, 11, 8, 12, tzinfo=UTC))
+    assert changed.schedule.cycles[0].details.ends_on == date(2026, 11, 8)
+    assert changed.schedule.current.details.starts_on == date(2026, 11, 8)
+    s.validate_cycle_dates(changed.schedule.cycles)
+
+
+@pytest.mark.parametrize("first_day", [1, 8])
+def test_end_only_successors_and_previous_ends_are_inferred_together(first_day):
+    state = configured(current=1)
+    first, following = state.cycles
+    state = replace(
+        state,
+        status="in_progress",
+        current_cycle_id=first.id,
+        cycles=(
+            replace(
+                first,
+                details=replace(
+                    first.details, starts_on=date(2026, 11, first_day), ends_on=None
+                ),
+            ),
+            replace(
+                following,
+                details=replace(
+                    following.details, starts_on=None, ends_on=date(2026, 11, 8)
+                ),
+            ),
+        ),
+    )
+    changed = s.advance(state, now=datetime(2026, 11, 8, 12, tzinfo=UTC))
+    assert changed.schedule.cycles[0].details.ends_on == date(2026, 11, 8)
+    assert changed.schedule.current.details.starts_on == date(2026, 11, 8)
+    assert s.record_transition_dates(changed, on=date(2026, 11, 8)) == changed
+    s.validate_cycle_dates(changed.schedule.cycles)
+
+
+def test_delayed_progression_does_not_infer_an_end_over_another_planned_cycle():
+    state = configured()
+    first = replace(state.current, details=replace(state.current.details, ends_on=None))
+    state = replace(state, cycles=(first,), status="in_progress")
+    now = datetime(2026, 11, 16, 12, tzinfo=UTC)
+    advanced = s.advance(state, now=now).schedule
+    assert advanced.cycles[0].details.ends_on is None
+    again = s.advance(advanced, now=now).schedule
+    assert again.current.order == 3
+    s.validate_cycle_dates(again.cycles)
+
+
+def test_a_start_conflicting_with_projected_dates_is_left_blank():
+    state = configured()
+    first = replace(
+        state.current,
+        details=replace(state.current.details, starts_on=None, ends_on=None),
+    )
+    state = replace(state, cycles=(first,))
+    changed = s.start(state, now=datetime(2026, 11, 16, 12, tzinfo=UTC)).schedule
+    assert changed.current.details.starts_on is None
+    assert (
+        s.advance(
+            changed, now=datetime(2026, 11, 16, 12, tzinfo=UTC)
+        ).schedule.current.order
+        == 2
+    )
 
 
 def test_adjacent_inclusive_ranges_allow_clearing_an_end_date():
@@ -341,7 +443,7 @@ def test_shifted_monthly_calendar_preserves_month_end_boundaries_and_cycle_lengt
     assert "days_offset" not in calendar_data(calendar)
 
 
-def test_extending_a_cycle_into_a_preview_requires_the_shift_option():
+def test_extending_a_cycle_past_a_preview_start_requires_the_shift_option():
     from datetime import timedelta
 
     state = configured()
@@ -353,6 +455,6 @@ def test_extending_a_cycle_into_a_preview_requires_the_shift_option():
             s.CycleDetails(
                 target.phase_id,
                 starts_on=target.starts_on,
-                ends_on=target.ends_on + timedelta(days=1),
+                ends_on=target.ends_on + timedelta(days=2),
             ),
         )

@@ -187,8 +187,8 @@ def dated(original):
                 c,
                 details=replace(
                     c.details,
-                    starts_on=date(2026, 11, c.order),
-                    ends_on=date(2026, 11, c.order),
+                    starts_on=date(2026, 11, c.order * 2 - 1),
+                    ends_on=date(2026, 11, c.order * 2),
                 ),
             )
             for c in original.cycles
@@ -207,7 +207,7 @@ def test_dated_copy_refuses_overlap_and_only_explicit_clear_dates_removes_bounds
         original.cycles[2].details, starts_on=None, ends_on=None
     )
     assert {"starts_on", "ends_on"} <= copied.customized_fields
-    assert original.cycles[2].details.starts_on == date(2026, 11, 3)
+    assert original.cycles[2].details.starts_on == date(2026, 11, 5)
 
 
 @pytest.mark.parametrize(
@@ -226,7 +226,7 @@ def test_reordering_dated_entries_refuses_instead_of_clearing_dates(move):
     with pytest.raises(s.ScheduleError, match="must follow"):
         move(original)
     assert [c.details.starts_on for c in original.cycles] == [
-        date(2026, 11, n) for n in range(1, 6)
+        date(2026, 11, n * 2 - 1) for n in range(1, 6)
     ]
 
 
@@ -238,7 +238,7 @@ def test_complete_candidate_dates_are_validated_even_for_a_rules_edit(ids):
             replace(
                 c,
                 details=replace(
-                    c.details, starts_on=date(2026, 11, 1), ends_on=date(2026, 11, 1)
+                    c.details, starts_on=date(2026, 11, 1), ends_on=date(2026, 11, 2)
                 ),
             )
             if c.id == "cycle-4"

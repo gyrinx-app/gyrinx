@@ -3,7 +3,7 @@
 import importlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from threading import Barrier, Event, Lock, local
 from unittest.mock import patch
 from uuid import uuid4
@@ -14,6 +14,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection, connections, transaction
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from gyrinx.site.models import Availability, FeatureFlag, Notification
 from n26.core import cycles
@@ -867,6 +868,194 @@ class TestCrossCampaignValidation:
         with pytest.raises(ValidationError, match="phase from this campaign"):
             cycle.full_clean()
         assert cycles.load(campaign) == configured
+
+
+class TestDatesFromProgression:
+    @pytest.fixture
+    def undated(self, campaign, owner, template, opened):
+        cycles.configure(
+            campaign,
+            actor=owner,
+            template_id=template.pk,
+            current_position=0,
+            mode="repeating",
+            request_key=uuid4(),
+        )
+        return cycles.load(campaign)
+
+    def test_start_advance_and_finish_fill_dates_and_replays_keep_them(
+        self, campaign, owner, undated
+    ):
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, 1, 12, tzinfo=UTC),
+        ):
+            state = start_campaign(campaign, owner)
+        assert state.current.details.starts_on == date(2026, 11, 1)
+        assert state.current.details.ends_on is None
+        key = uuid4()
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, 8, 12, tzinfo=UTC),
+        ):
+            first = advance(campaign, owner, state, key=key)
+        saved = cycles.load(campaign)
+        assert saved.cycles[0].details.ends_on == date(2026, 11, 8)
+        assert saved.current.details.starts_on == date(2026, 11, 8)
+        assert advance(campaign, owner, state, key=key).replayed
+        assert cycles.load(campaign) == saved
+        assert campaign.cycle_transitions.filter(pk=first.transition_id).count() == 1
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, 15, 12, tzinfo=UTC),
+        ):
+            cycles.finish(
+                campaign,
+                actor=owner,
+                expected_current=saved.current_cycle_id,
+                expected_revision=saved.revision,
+                request_key=uuid4(),
+            )
+        assert cycles.load(campaign).current.details.ends_on == date(2026, 11, 15)
+
+    def test_same_day_progression_keeps_the_schedule_editable(
+        self, campaign, owner, undated
+    ):
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, 8, 12, tzinfo=UTC),
+        ):
+            state = start_campaign(campaign, owner)
+            for _ in range(3):
+                advance(campaign, owner, state)
+                state = cycles.load(campaign)
+        s.validate_cycle_dates(state.cycles)
+        assert all(c.details.starts_on == date(2026, 11, 8) for c in state.cycles)
+        assert all(c.details.ends_on == date(2026, 11, 8) for c in state.cycles[:-1])
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(state.current.id),
+            details=replace(
+                state.current.details,
+                custom_name="The siege",
+                ends_on=date(2026, 11, 9),
+            ),
+            expected_revision=state.revision,
+            request_key=uuid4(),
+        )
+        assert cycles.load(campaign).current.details.custom_name == "The siege"
+
+    def test_start_uses_the_local_day_and_finishing_via_campaign_status_fills_the_end(
+        self, campaign, owner, undated
+    ):
+        with (
+            timezone.override("Pacific/Auckland"),
+            patch(
+                "n26.core.cycles.timezone.now",
+                return_value=datetime(2026, 11, 1, 23, 30, tzinfo=UTC),
+            ),
+        ):
+            cycles.start(
+                campaign,
+                actor=owner,
+                expected_current=undated.current_cycle_id,
+                expected_revision=undated.revision,
+                request_key=uuid4(),
+            )
+            with campaign_operation(campaign, actor=owner) as act:
+                act.set_status(Campaign.Status.POST_CAMPAIGN)
+        current = cycles.load(campaign).current
+        assert current.details.starts_on == current.details.ends_on == date(2026, 11, 2)
+
+    def test_existing_planned_dates_are_preserved(self, campaign, owner, configured):
+        original = configured.current.details
+        state = start_campaign(campaign, owner)
+        advance(campaign, owner, state)
+        assert cycles.load(campaign).cycles[0].details == original
+
+    @pytest.mark.parametrize("day", [8, 16])
+    def test_mixed_planned_and_blank_dates_keep_later_advances_possible(
+        self, campaign, owner, configured, day
+    ):
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(configured.current.id),
+            details=replace(
+                configured.current.details,
+                starts_on=None if day == 8 else configured.current.details.starts_on,
+                ends_on=None,
+            ),
+            expected_revision=configured.revision,
+            request_key=uuid4(),
+        )
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, day, 12, tzinfo=UTC),
+        ):
+            before = start_campaign(campaign, owner)
+            key = uuid4()
+            advance(campaign, owner, before, key=key)
+            state = cycles.load(campaign)
+            assert advance(campaign, owner, before, key=key).replayed
+            assert cycles.load(campaign) == state
+            advance(campaign, owner, state)
+        after = cycles.load(campaign)
+        assert after.current.order == 3
+        assert after.cycles[0].details.ends_on == (
+            date(2026, 11, 8) if day == 8 else None
+        )
+        s.validate_cycle_dates(after.cycles)
+
+    def test_configuring_a_running_campaign_dates_only_the_current_cycle(
+        self, campaign, owner, template, opened
+    ):
+        with campaign_operation(campaign, actor=owner) as act:
+            act.set_status(Campaign.Status.IN_PROGRESS)
+        with patch(
+            "n26.core.cycles.timezone.now",
+            return_value=datetime(2026, 11, 8, 12, tzinfo=UTC),
+        ):
+            cycles.configure(
+                campaign,
+                actor=owner,
+                template_id=template.pk,
+                current_position=2,
+                mode="fixed",
+                request_key=uuid4(),
+            )
+        state = cycles.load(campaign)
+        assert state.current.details.starts_on == date(2026, 11, 8)
+        assert all(
+            c.details.starts_on is None
+            for c in state.cycles
+            if c.id != state.current.id
+        )
+        assert all(c.details.ends_on is None for c in state.cycles)
+
+    @pytest.mark.parametrize(
+        "bound,value", [("starts_on", date(2099, 1, 1)), ("ends_on", date(2000, 1, 1))]
+    )
+    def test_incompatible_planned_bounds_do_not_block_progression(
+        self, campaign, owner, undated, bound, value
+    ):
+        cycles.edit_cycle(
+            campaign,
+            actor=owner,
+            target=s.SavedCycleRef(undated.current.id),
+            details=replace(undated.current.details, **{bound: value}),
+            expected_revision=undated.revision,
+            request_key=uuid4(),
+        )
+        state = start_campaign(campaign, owner)
+        advance(campaign, owner, state)
+        original = cycles.load(campaign).cycles[0].details
+        assert getattr(original, bound) == value
+        assert (
+            getattr(original, "ends_on" if bound == "starts_on" else "starts_on")
+            is None
+        )
 
 
 class TestStoredCycleDates:

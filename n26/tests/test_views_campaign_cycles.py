@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import cycles
@@ -1455,7 +1456,7 @@ class TestManualCycleDates:
         assert s.project(state) == ()
 
     @pytest.mark.parametrize("native", [False, True])
-    def test_manual_setup_materialises_and_advances_without_dates(
+    def test_manual_setup_fills_dates_when_cycles_start_and_end(
         self, client, campaign, opened, template, native
     ):
         response = post(
@@ -1479,9 +1480,17 @@ class TestManualCycleDates:
             ).status_code == (302 if native else 200)
         state = cycles.load(campaign)
         assert state.current.order == 2
-        assert all(
-            c.details.starts_on is c.details.ends_on is None for c in state.cycles
+        started, advanced = campaign.cycle_transitions.order_by("occurred_at")
+        assert state.cycles[0].details.starts_on == timezone.localdate(
+            started.occurred_at
         )
+        assert state.cycles[0].details.ends_on == timezone.localdate(
+            advanced.occurred_at
+        )
+        assert state.current.details.starts_on == timezone.localdate(
+            advanced.occurred_at
+        )
+        assert state.current.details.ends_on is None
         target = s.project(state)[2]
         query = {"plan": state.plan.id, "position": target.source.position.index}
         editor = props(client.get(editor_url(campaign, "cycle", **query)))["editor"]
@@ -1489,6 +1498,10 @@ class TestManualCycleDates:
             client, campaign, "cycle", editor["values"], native=native, **query
         ).status_code == (302 if native else 200)
         assert len(cycles.load(campaign).cycles) == target.order
+        assert all(
+            c.details.starts_on is c.details.ends_on is None
+            for c in cycles.load(campaign).cycles[2:]
+        )
 
     @pytest.mark.parametrize("native", [False, True])
     @pytest.mark.parametrize("configured", ["repeating"], indirect=True)
