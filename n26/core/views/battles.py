@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from n26.core.battle_permissions import may_record_gang
-from n26.core.campaign_permissions import may_record_outcome
+from n26.core.campaign_permissions import may_change_battle_scenario, may_record_outcome
 from n26.core.campaigns import battle_stake, campaign_operation
 from n26.core.forms import BattleOutcomeForm
 from n26.core.models import (
@@ -140,7 +140,7 @@ def battle(request, pk, battle_pk):
     )
     scenario_generate_url = f"{scenario_url}?{urlencode({'campaign': str(campaign.pk), 'battle': str(found.pk)})}"
     scenario_editor = None
-    if campaign.owner_id == request.user.pk and not found.archived:
+    if may_change_battle_scenario(found, request.user):
         from django.middleware.csrf import get_token
 
         from n26.core.views.scenario_props import battle_scenario_props

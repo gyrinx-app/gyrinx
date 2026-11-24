@@ -649,14 +649,24 @@ class CampaignOperation:
         )
 
     def connect_scenario(self, battle, rolls, *, revision):
-        """Attach generated components without changing the battle's name or outcome."""
+        """Attach generated components without changing the battle's name or outcome.
+
+        The arbitrator may change any battle's scenario. A player in the
+        battle may until its date has passed or its outcome is recorded
+        (``may_change_battle_scenario``). The log records the old and new
+        components, and who changed them.
+        """
+        from n26.core.campaign_permissions import may_change_battle_scenario
         from n26.core.operations import Refusal
-        from n26.core.scenarios import rolls_of
+        from n26.core.scenarios import change_note, rolls_of
 
         self._require_recorder()
-        if self.actor.pk != self.campaign.owner_id:
-            raise Refusal("Only the arbitrator can connect a scenario to a battle.")
         battle = self._locked_battle(battle)
+        if not may_change_battle_scenario(battle, self.actor):
+            raise Refusal(
+                "Only the arbitrator can change this battle's scenario now. "
+                "Players in the battle can change it until the day of the battle."
+            )
         if battle.revision != revision:
             raise Refusal("This battle changed. Reload it before saving your changes.")
         found, wrong = self._scenario_selection(rolls, retained=battle.scenario_rolls)
@@ -665,14 +675,11 @@ class CampaignOperation:
         rolls = rolls_of(found)
         if battle.scenario_rolls == rolls:
             return battle
+        note = change_note(battle.scenario_rolls or {}, rolls)
         battle.scenario_rolls = rolls
         battle.revision += 1
         battle.save(update_fields=["scenario_rolls", "revision", "modified"])
-        self.event(
-            CampaignEvent.Kind.BATTLE_EDITED,
-            battle=battle,
-            note=f"{battle.title} on {battle.date.isoformat()}",
-        )
+        self.event(CampaignEvent.Kind.SCENARIO_CHANGED, battle=battle, note=note)
         return battle
 
     def edit_battle(

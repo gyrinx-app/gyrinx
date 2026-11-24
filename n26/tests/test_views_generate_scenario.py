@@ -328,7 +328,7 @@ class TestConnecting:
         assert battle.revision == 1
         assert (
             CampaignEvent.objects.filter(
-                battle=battle, kind=CampaignEvent.Kind.BATTLE_EDITED
+                battle=battle, kind=CampaignEvent.Kind.SCENARIO_CHANGED
             ).count()
             == 1
         )
@@ -365,14 +365,18 @@ class TestConnecting:
         battle.refresh_from_db()
         assert battle.scenario_rolls == {}
 
-    def test_an_accepted_player_cannot_amend_an_existing_battle(
+    def test_a_player_not_in_the_battle_cannot_change_its_scenario(
         self, client, campaign, battle, player
     ):
+        # Players in a battle change its scenario on the battle's page,
+        # tested in test_views_battle_scenario_players.py.
         assert not client.get(generator_url(), {"deployment": "3"}).context[
             "may_connect"
         ]
         response = client.post(save_url(), connection_data(campaign, battle))
-        assert "campaign" in response.context["dialog_form"].errors
+        assert "Only the arbitrator can change" in " ".join(
+            response.context["dialog_form"].non_field_errors()
+        )
         battle.refresh_from_db()
         assert battle.scenario_rolls == {}
         from n26.core.operations import Refusal
@@ -446,7 +450,7 @@ class TestConnecting:
         client.post(save_url(), connection_data(campaign, battle))
         assert (
             CampaignEvent.objects.filter(
-                battle=battle, kind=CampaignEvent.Kind.BATTLE_EDITED
+                battle=battle, kind=CampaignEvent.Kind.SCENARIO_CHANGED
             ).count()
             == 1
         )
