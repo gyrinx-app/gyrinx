@@ -137,7 +137,7 @@ record is needed to reproduce that result.
 The connection dialog loads battles only after a campaign is selected. Archived
 campaigns and battles are excluded. Replacing an attached scenario shows a warning.
 The server checks the campaign, battle and permissions again, and refuses a stale
-battle revision. Connecting appends a battle-edit event; repeating an unchanged
+battle revision. Connecting appends a **Scenario changed** log entry; repeating an unchanged
 connection adds no duplicate event. Names belong to battles, so the dialog has no
 scenario-name field. A successful connection opens the selected battle page.
 
@@ -163,3 +163,21 @@ same options as battle creation. Each generated result is
 attached immediately, without leaving the page or requiring a separate save.
 The battle revision is checked so a concurrent edit cannot be overwritten; a
 refused attachment leaves the displayed saved result intact.
+
+Players whose gangs are in the battle get the same scenario controls before
+they play, so the player issuing a challenge can choose or roll its
+stipulations:
+
+| Who | Can change the battle's scenario |
+| --- | --- |
+| The arbitrator | Any time, until the battle is archived. |
+| A player whose gang is in the battle | Up to and including the battle's date, until its outcome is recorded. |
+| Anyone else who can read the campaign | Never. They see the scenario only. |
+
+Every change adds a **Scenario changed** line to the campaign log. It names who
+made the change and each component's old and new result, for example:
+
+> changed the scenario of Stand-off: Deployment: Chance Encounter → Ambush;
+> Side job 1: added Wreck It (Orlock)
+
+A component that was added or removed says so. The line links to the battle.

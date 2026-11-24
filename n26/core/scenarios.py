@@ -222,3 +222,58 @@ def read_history_note(note):
         if key and value:
             rolls[key] = value
     return rolls, name.strip()
+
+
+# A changed battle scenario's note holds the old and new component values,
+# old|new, each as key=value pairs: objective=2,side_job=escher-3|objective=5.
+# The log names the entries from the tables as they are now.
+def change_note(old, new):
+    """The note a changed battle scenario's log entry stores."""
+
+    def pairs(rolls):
+        return ",".join(f"{key}={value}" for key, value in rolls.items())
+
+    return f"{pairs(old)}|{pairs(new)}"
+
+
+def read_change_note(note):
+    """``(old, new)`` rolls from a changed battle scenario's note."""
+    old, _, new = note.partition("|")
+
+    def rolls(pairs):
+        found = {}
+        for pair in pairs.split(","):
+            key, _, value = pair.partition("=")
+            if key and value:
+                found[key] = value
+        return found
+
+    return rolls(old), rolls(new)
+
+
+def describe_changes(old, new, catalogue=None):
+    """Each component that differs between two scenarios, as the log says
+    it: "Objective: Loot → Hold the Line", "Side job 2: added Wreck It
+    (Orlock)" or "Side job 3: removed Hunt Together (Escher)"."""
+
+    def by_heading(rolls):
+        found, _ = parse(rolls, catalogue)
+        return {result.table.name: result for result in found}
+
+    def said(result):
+        found = result.table.side_job_set
+        label = result.entry.label
+        return f"{label} ({found.name})" if found else label
+
+    before, after = by_heading(old), by_heading(new)
+    changes = []
+    for heading in [*before, *(h for h in after if h not in before)]:
+        was, now = before.get(heading), after.get(heading)
+        if was and now:
+            if said(was) != said(now):
+                changes.append(f"{heading}: {said(was)} → {said(now)}")
+        elif now:
+            changes.append(f"{heading}: added {said(now)}")
+        else:
+            changes.append(f"{heading}: removed {said(was)}")
+    return changes

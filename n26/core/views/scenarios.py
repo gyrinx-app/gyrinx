@@ -353,7 +353,9 @@ def save_scenario_to_campaign(request):
     form = ConnectScenarioToBattleForm(
         data,
         catalogue=request_catalogue(request),
-        campaigns=recording_campaigns(request.user).filter(owner=request.user),
+        # Players in a battle may change its scenario too, so the campaign
+        # is any they record in; connect_scenario checks the battle.
+        campaigns=recording_campaigns(request.user),
     )
     if form.is_valid():
         campaign = form.cleaned_data["campaign"]

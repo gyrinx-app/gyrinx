@@ -250,15 +250,25 @@ through `campaign_print_scenario`. The campaign Battles box offers only
 **Connect to battle** and **Create a battle** retain `dialog=save` and
 `dialog=record` in their URLs. `_render_generator` supplies plain props to the
 `scenario-dialog` island. The connection list contains only active campaigns the
-reader arbitrates; creation still permits accepted participants.
+reader arbitrates; creation still permits accepted participants. The
+connection endpoint itself accepts any campaign the reader records in, so
+players' saves from the battle page reach `connect_scenario`, which checks the
+battle.
 
 Changing the connection campaign navigates with the scenario intact, and the
 server loads that campaign's active battles in one query. The form scopes the
 battle to the selected authorised campaign. Its revision is submitted with the
-components. `CampaignOperation.connect_scenario` rechecks permissions, locks the
-battle and refuses stale changes. It changes only `scenario_rolls`, the revision
-and the modification time, appending a `BATTLE_EDITED` event. It preserves the
-battle's name and outcome. No migration is required.
+components. `CampaignOperation.connect_scenario` locks the battle, checks
+`may_change_battle_scenario` in `n26/core/campaign_permissions.py` and refuses
+stale changes. That rule lets the arbitrator change any battle that is not
+archived, and a player whose gang is in the battle change it up to and including
+the battle's date while no outcome is recorded. `connect_scenario` changes only
+`scenario_rolls`, the revision and the modification time, appending a
+`SCENARIO_CHANGED` event. Its note holds the old and new values,
+`old|new`, each as `key=value` pairs (`change_note` and `read_change_note` in
+`n26/core/scenarios.py`). The log names the entries from the tables as they are
+now, through `describe_changes`. It preserves the
+battle's name and outcome. Migration `n26.0095_campaign_event_scenario_changed` only adds the new event kind to the field's choices.
 
 The `battle-scenario` island supplies an optional compact preview on creation.
 Its props, from `n26/core/views/scenario_props.py`, include `sideJobSets`,
@@ -275,7 +285,7 @@ It calls the existing generator with `generate=1&format=json`; rolls are still
 chosen on the server. Component validation remains in `BattleForm` and
 `record_battle`. A blank battle name is assigned `Battle #N` under the campaign
 lock. The battle header shares its canonical battle URL. The scenario panel offers a compact summary, printing
-and full-result links. Arbitrators reuse the same island on saved battles.
+and full-result links. Whoever `may_change_battle_scenario` allows reuses the same island on saved battles.
 The optional save props supply the battle, campaign, revision and CSRF token.
 The existing connection endpoint accepts `generate=1&format=json` with table
 picks, generating and attaching in one POST. It removes supplied result values

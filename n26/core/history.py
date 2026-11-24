@@ -1382,7 +1382,11 @@ def _campaign_own_acts(campaign, viewer, limit=None):
     )
     events = list(events)
     catalogue = None
-    if any(e.kind == CampaignEvent.Kind.SCENARIO_SAVED for e in events):
+    if any(
+        e.kind
+        in (CampaignEvent.Kind.SCENARIO_SAVED, CampaignEvent.Kind.SCENARIO_CHANGED)
+        for e in events
+    ):
         from n26.library.scenario_tables import load_catalogue
 
         catalogue = load_catalogue()
@@ -1646,6 +1650,21 @@ def _tell_campaign(e, catalogue=None):
                     f"{what}: {describe(found)}", _scenario_href(e.campaign_id, rolls)
                 ),
             ), "campaign"
+        case kinds.SCENARIO_CHANGED:
+            # The note holds the old and new components. The entries are
+            # named from the tables as they are now.
+            from n26.core.scenarios import describe_changes, read_change_note
+
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            which = f"the scenario of {e.battle.title}" if e.battle else "a scenario"
+            changes = describe_changes(*read_change_note(e.note), catalogue)
+            if not changes:
+                return (Span(f"changed {which}", href),), "campaign"
+            return (Span(f"changed {which}: {'; '.join(changes)}", href),), "campaign"
         case kinds.BATTLE_RECORDED:
             href = (
                 reverse("n26-battle", args=[e.campaign_id, e.battle_id])

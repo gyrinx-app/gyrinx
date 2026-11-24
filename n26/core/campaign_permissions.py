@@ -55,3 +55,26 @@ def may_record_outcome(battle, user):
     return (
         battle.campaign.owner_id == user.pk or battle.gangs.filter(owner=user).exists()
     )
+
+
+def may_change_battle_scenario(battle, user, today=None):
+    """Whether this reader may change a battle's generated scenario.
+
+    The arbitrator may while the battle is not archived. An accepted
+    player whose gang is in the battle may too, up to and including the
+    battle's date and until an outcome is recorded, so the players can
+    set the scenario before they play.
+    """
+    from django.utils import timezone
+
+    from n26.core.models import Battle
+
+    if battle.archived or not may_record_campaign(battle.campaign, user):
+        return False
+    if battle.campaign.owner_id == user.pk:
+        return True
+    if battle.result != Battle.Result.NOT_RECORDED:
+        return False
+    if battle.date < (today or timezone.localdate()):
+        return False
+    return battle.gangs.filter(owner=user).exists()
