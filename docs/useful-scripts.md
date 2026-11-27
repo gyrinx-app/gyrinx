@@ -75,6 +75,19 @@ DB from current model definitions on every run.
 ./scripts/test.sh -k campaign      # by name
 ```
 
+### `scripts/update_package_lock.sh`
+
+Rewrites `package-lock.json` with npm 11. npm 10 can leave an already installed
+nested dependency in place after a `package.json` `overrides` change, so the
+lockfile no longer matches the override. Review the lockfile diff before
+committing it. `--check` runs `npm ls --package-lock-only` and does not rewrite
+the file. CI runs the check.
+
+```bash
+./scripts/update_package_lock.sh
+./scripts/update_package_lock.sh --check
+```
+
 ### `scripts/check_migrations.sh`
 
 Checks for any migration issues or conflicts.
