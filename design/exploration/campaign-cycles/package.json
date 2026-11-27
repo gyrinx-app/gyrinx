@@ -1,0 +1,26 @@
+{
+  "name": "gyrinx-campaign-cycles-exploration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && tailwindcss --input src/theme.css --output dist/theme.css --minify && node build-shadow-theme.mjs",
+    "start": "vite preview --host 127.0.0.1 --port 8768 --strictPort",
+    "check": "node check_campaign.mjs && node check_campaign_automatic.mjs && node check_campaign_responsive.mjs",
+    "format:check": "prettier --check \"src/*.{js,jsx,css}\" \"*.mjs\" \"*.js\" \"package*.json\""
+  },
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "lucide-react": "1.53.0"
+  },
+  "devDependencies": {
+    "vite": "7.3.7",
+    "tailwindcss": "4.3.0",
+    "@tailwindcss/cli": "4.3.0",
+    "playwright": "1.61.1",
+    "prettier": "3.9.10"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

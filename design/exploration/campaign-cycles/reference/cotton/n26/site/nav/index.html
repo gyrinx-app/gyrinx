@@ -1,0 +1,138 @@
+{% comment %}
+<c-n26.site.nav> — Site header: brand, optional heading, account menu, and a drawer of links.
+
+The default slot is drawn twice: once in the drawer and once in the noscript strip.
+The switcher hides nested noscript so it does not stack with this bar's fallback nav.
+Print CSS in app.css hides the whole header.
+The bar background is set outside the utility layer in app.css, so kit background utilities do not replace it.
+unread fills the badge and the trigger's accessible name together.
+heading must be a slot. A Django block inside a Cotton attribute never runs.
+Pass :unread so it arrives a number. Written without the colon, the string 0 is true and draws a badge for an empty inbox.
+aria-label replaces the trigger's inner text. A badge inside is announced to nobody.
+The drawer's root is display:contents, so the burger sits in this row. The panel teleports to the body and leaves this header's dark subtree.
+{% endcomment %}
+
+<c-vars
+    title=""
+    href="/"
+    switcher=""
+    user_label=""
+    menu_label="Open account menu"
+    drawer_label="Open navigation menu"
+    sticky=""
+    logo=""
+    heading=""
+    gangs=""
+    menu=""
+    unread=""
+    actions=""
+    brand_actions=""
+    class=""
+/>
+
+<header {{ attrs }} class="n26-site-nav {% if sticky %}sticky top-0{% else %}relative{% endif %}
+                           z-40 w-full border-b border-ink-200 dark:border-ink-800 {{ class }}">
+    <div class="flex h-14 items-center gap-2 px-4">
+
+        <a href="{{ href }}" class="n26-site-brand shrink-0 focus-ring">
+            {% if logo %}{{ logo }}{% endif %}
+            {% if title %}<span class="hidden sm:inline">{{ title }}</span>{% endif %}
+        </a>
+
+        {# An empty block still passes newlines, which Django treats as true. #}
+        {% if heading.strip or switcher.strip %}
+
+            <span class="flex min-w-0 items-center gap-2">
+                {% if heading.strip %}
+                    <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
+                {% endif %}
+
+                {% if switcher.strip %}
+                    {# Hide a nested noscript. This bar already has one below. #}
+                    {# Keep overflow visible: a panel inside a truncated box is clipped to nothing. #}
+                    <span class="min-w-0 [&_noscript]:hidden">{{ switcher }}</span>
+                {% endif %}
+            </span>
+        {% endif %}
+
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+            {{ actions }}
+
+            {% if user_label %}
+                <c-ui.dropdown align="end">
+                    <c-slot name="trigger">
+
+                        <button type="button"
+                                aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notifications{% endif %}"
+                                title="{{ menu_label }}"
+                                class="relative inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
+                                       text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
+                                       dark:text-ink-300 dark:hover:bg-ink-800">
+
+                            <span class="hidden max-w-40 truncate sm:inline">{{ user_label }}</span>
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+
+                            <c-n26.count-badge :count="unread" class="absolute -top-0.5 -right-0.5" />
+                        </button>
+                    </c-slot>
+                    {% if menu %}{{ menu }}{% endif %}
+                </c-ui.dropdown>
+            {% endif %}
+
+            <span aria-hidden="true" class="h-6 w-px shrink-0 bg-ink-200 dark:bg-ink-700"></span>
+
+            <c-ui.drawer side="right" size="sm">
+                <button type="button"
+                        @click="drawerOpen = true"
+                        aria-label="{{ drawer_label }}"
+                        title="{{ drawer_label }}"
+                        class="inline-flex shrink-0 cursor-pointer items-center rounded-control p-2
+                               text-ink-600 hover:bg-ink-100 focus-ring
+                               dark:text-ink-300 dark:hover:bg-ink-800">
+                    <c-n26.icon name="menu" class="size-5" />
+                </button>
+                <c-slot name="header">
+                    <a href="{{ href }}" class="n26-site-brand focus-ring">
+                        {% if logo %}{{ logo }}{% endif %}
+                        {% if title %}<span>{{ title }}</span>{% endif %}
+                    </a>
+                    {% if brand_actions.strip %}{{ brand_actions }}{% endif %}
+                </c-slot>
+                <c-slot name="content">
+
+                    {# Same default slot as the noscript strip. Cotton does not consume it. #}
+                    <nav class="-mx-2 flex flex-col
+                                [&>a]:flex [&>a]:items-center [&>a]:gap-3
+                                [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
+                                [&>a]:text-sm [&>a]:transition-colors
+                                [&>a]:text-ink-700 dark:[&>a]:text-ink-300
+                                [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
+                                [&>.is-current]:font-medium
+                                [&>.is-current]:text-accent
+                                [&>span]:flex [&>span]:items-center [&>span]:gap-2
+                                [&>span]:px-3 [&>span]:py-2 [&>span]:text-sm
+                                [&>span]:text-ink-400 dark:[&>span]:text-ink-500">{{ slot }}</nav>
+                    {% if gangs.strip %}
+                        <div class="my-3 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
+                        <h2 class="px-1 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">
+                            Your gangs
+                        </h2>
+                        <div class="-mx-2 flex flex-col">{{ gangs }}</div>
+                    {% endif %}
+                </c-slot>
+            </c-ui.drawer>
+        </div>
+    </div>
+
+    <noscript>
+        {# Fallback when the drawer is off. Same links as the drawer slot. #}
+        <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink-200 px-4 py-2
+                    text-sm [&>a]:text-ink-600 [&>a:hover]:text-ink-900 [&>.is-current]:font-medium
+                    [&>.is-current]:text-accent [&>span]:text-ink-400
+                    dark:border-ink-800 dark:[&>a]:text-ink-400 dark:[&>a:hover]:text-white
+                    dark:[&>span]:text-ink-500">{{ slot }}</nav>
+    </noscript>
+</header>

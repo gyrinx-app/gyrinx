@@ -1,0 +1,667 @@
+{% load static %}
+{% load banner %}
+{% load navigation %}
+{% load pages %}
+{% comment %}
+The n26 page shell. Block names and order match the platform base template
+(head_title, stylesheet, body, content, extra_body, extra_script) so templates
+written against it extend this one unchanged. Context it reads, all optional:
+banner, is_impersonating / impersonator / impersonate_target,
+gtm_container_id, messages, user.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Gyrinx is a free set of tools for the Necromunda community">
+        <meta name="author" content="Gyrinx">
+        <meta name="keywords" content="Necromunda, Gyrinx">
+        <meta name="application-name" content="Gyrinx">
+        {% comment %}
+        Must come before the stylesheet; storage_key and default must match
+        every <c-ui.mode-toggle> on the page.
+        {% endcomment %}
+        <c-ui.mode-toggle.head storage_key="theme" default="system" />
+        {% comment %}
+        crossorigin is required on the preconnect: fonts are fetched anonymously,
+        and without it the browser opens a second connection and the hint is wasted.
+        {% endcomment %}
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        {% block favicon %}
+            <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="152x152"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-152x152.png' %}">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="120x120"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-120x120.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="196x196"
+                  href="{% static 'platform/img/brand/favicon/favicon-196x196.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="32x32"
+                  href="{% static 'platform/img/brand/favicon/favicon-32x32.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="16x16"
+                  href="{% static 'platform/img/brand/favicon/favicon-16x16.png' %}">
+        {% endblock favicon %}
+        {# djlint:off #}
+        <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
+        {# djlint:on #}
+        {% block stylesheet %}
+            <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+        {% endblock stylesheet %}
+        {% comment %}
+        For a page's own head additions — a form's media, a page-specific
+        script. After the stylesheet so nothing here can win a cascade
+        it should be losing.
+        {% endcomment %}
+        {% block extra_head %}
+        {% endblock extra_head %}
+        {% comment %}
+        1320px from 1400px up matches the platform's container cap, so n26 pages
+        read as the same width as the rest of the site.
+        {% endcomment %}
+        <style>
+            :root { --n26-site-width: 75rem; }
+            @media (min-width: 1400px) {
+                :root { --n26-site-width: 1320px; }
+            }
+        </style>
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','{{ gtm_container_id }}');
+            </script>
+            {# djlint:on #}
+        {% endif %}
+        {% include "platform/includes/timezone_cookie.html" %}
+    </head>
+    {% comment %}
+    --n26-sticky-top tells sticky descendants (e.g. <c-n26.collection-picker>)
+    where the viewport top really is: the nav is sticky and 3.5rem tall, so
+    anything that stuck at 0 would slide underneath it.
+    {% endcomment %}
+    {# djlint:off H021 — a CSS custom property children read; it must ride the element #}
+    <body class="flex min-h-screen flex-col" style="--n26-sticky-top: 3.5rem">
+        {# djlint:on #}
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <noscript>
+                <iframe src="https://www.googletagmanager.com/ns.html?id={{ gtm_container_id }}"
+                        height="0" width="0" style="display:none; visibility:hidden"></iframe>
+            </noscript>
+            {# djlint:on #}
+        {% endif %}
+        <a href="#content"
+           class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
+            Skip to main content
+        </a>
+        {% comment %}
+        Both attributes go through a filter because Banner is platform-owned and
+        speaks Bootstrap: its icon is a Bootstrap Icons class and its colour a
+        Bootstrap contextual colour, neither of which this edition has. See
+        core/templatetags/banner.py — passing banner.icon straight to the icon
+        component 500s the whole edition the moment someone sets a banner to an
+        icon n26 does not draw.
+        {% endcomment %}
+        {% comment %}
+        dismiss_url is what makes the close button stick. The component
+        deliberately does not remember being dismissed — only the application
+        can decide where that memory lives — so without this the bar is hidden
+        for the current page and back on the next one.
+
+        It lives in the session, which is where the site's own context
+        processor looks before it puts `banner` in the context at all, so the
+        reader is told once whichever edition they were in when they closed it.
+        The route is the platform's rather than an edition's: it operates on a
+        platform-owned Banner and writes a key both editions read.
+        {% endcomment %}
+        {% comment %}
+        The call to action goes by way of the platform's click tracker, which
+        counts the click and then redirects to the banner's own address. Linked
+        straight at that address instead, the bar still works and the clicks
+        are simply never counted — so a banner advertising something reports
+        nothing from this edition's pages and reads as ignored.
+
+        Only when there is somewhere to go: the tracker redirects a banner with
+        no address of its own to the site's home, so handing the component a
+        tracker link unconditionally would turn "no call to action" into a
+        button leading out of the edition.
+        {% endcomment %}
+        {% comment %}
+        Both addresses are written inline rather than resolved into a variable
+        first. The `as` form of {% url %} answers an unknown route name with an
+        empty string, which here would mean a bar that quietly stops offering
+        its button, or a close button that posts nowhere and forgets — a route
+        renamed out from under this file would be noticed by nobody. Written
+        this way it raises on the spot.
+        {% endcomment %}
+        {% if banner %}
+            <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
+                                     icon="{{ banner.icon|banner_icon }}"
+                                     cta_text="{{ banner.cta_text }}"
+                                     cta_url="{% if banner.cta_url %}{% url 'core:track-banner-click' banner.id %}{% endif %}"
+                                     dismiss_url="{% url 'core:dismiss-banner' %}"
+                                     banner_id="{{ banner.id }}"
+                                     message="{{ banner.text }}"
+                                     id="site-banner-{{ banner.id }}" />
+        {% endif %}
+        {% comment %}
+        The `dark` class keeps the header dark in both modes: it re-declares the
+        theme's dark tokens for the subtree and enables dark: utilities inside it.
+        The drawer teleports out of this subtree and so follows the page's theme,
+        which is right — it covers the page, not the bar.
+
+        The nav_heading block goes *inside* a c-slot, never into a heading=""
+        attribute: cotton parses attributes before Django's block machinery runs,
+        so a block in an attribute silently renders as nothing.
+        {% endcomment %}
+        {% comment %}
+        The brand goes to the edition's own home, not the site root: every page
+        under this layout is an n26 page, and a logo that dumps a reader back on
+        the n23 site reads as leaving the app rather than going home.
+        {% endcomment %}
+        {% comment %}
+        The count is the site's rather than this edition's — one inbox serves
+        both — and it arrives in the context on every page from the platform's
+        notifications processor. Passed with a colon so it stays a number: the
+        string "0" is true, and the bar would carry an empty-inbox badge.
+        {% endcomment %}
+        {% block site_nav %}
+            <c-n26.site.nav title="Gyrinx"
+                            href="{% url 'n26-dashboard' %}"
+                            sticky="1"
+                            :unread="unread_notification_count"
+                            class="dark">
+                {% comment %}
+            The account button's name, with the badge the account holds. A slot
+            rather than the user_label attribute because an attribute is escaped
+            and the badge would arrive as its own source code; drawn only when
+            there is someone to name, because an empty label is what tells the
+            bar a visitor has no account menu to open.
+
+            Which badge is the platform's answer rather than this edition's —
+            supporter standing and staff flag belong to the account — and
+            c-n26.user-link is what asks. No href: the button around it is the
+            control, and a link inside a button is a click with two answers.
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="user_label">
+                        <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
+                    </c-slot>
+                {% endif %}
+                <c-slot name="logo">
+                    <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                         alt=""
+                         width="24"
+                         height="24"
+                         class="size-6">
+                </c-slot>
+                <c-slot name="brand_actions">
+                    <a href="{% url 'core:dice' %}"
+                       title="Dice roller"
+                       aria-label="Dice roller"
+                       class="inline-flex shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
+                        <c-n26.icon name="dice-6" class="size-5" />
+                    </a>
+                </c-slot>
+                <c-slot name="heading">
+                    {% block nav_heading %}
+                    {% endblock nav_heading %}
+                </c-slot>
+                {% comment %}
+            A second slot beside the name rather than more of it. A page that
+            is one of something — one gang, one kind of content — offers the
+            others here; whether it also names itself first is its own
+            business. Fill both and the bar reads "Foundations" and then a
+            chevron; fill only this one and the switcher carries the name
+            itself, which is what a gang's screens do.
+
+            The default is the app's own places, so no screen is without a
+            bar switcher: the chord that opens it (⌥⇧F) has to land
+            everywhere, and a page that is not one of anything still has
+            somewhere worth going. Pages that are one of something override
+            the block, keeping the same chord on their own list.
+                {% endcomment %}
+                <c-slot name="switcher">
+                    {% block nav_switcher %}
+                        {% places_switcher as places_ %}
+                        <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+                    {% endblock nav_switcher %}
+                </c-slot>
+                {% comment %}
+            One list of places, on every screen the edition has. The block
+            exists so a page can say which of them it is — it overrides with
+            the same include and its own `here` — and not so an area can swap
+            the list for one of its own: a drawer whose contents depend on
+            which half of the app you are standing in is one you have to open
+            to find out what it is this time.
+
+            A block rather than a slot, because a page extending this template
+            can fill a block and cannot fill a slot on a component the
+            template owns. The default is filled here rather than left empty,
+            so a page that says nothing still gets the drawer everything else
+            has.
+                {% endcomment %}
+                {% block nav_items %}
+                    {% include "n26/_nav.html" %}
+                {% endblock nav_items %}
+                {% comment %}
+            The reader's own gangs, under the places the app has: a gang is
+            what someone opens the drawer for, and the alternative is two
+            clicks through the gangs page every time.
+
+            The query runs here rather than in a context processor because
+            this layout is the only thing that draws the drawer — a processor
+            would run it for every page on the site.
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="gangs">
+                        {% drawer_gangs as drawer_gangs_ %}
+                        {% for gang in drawer_gangs_ %}
+                            <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
+                                                 name="{{ gang.name }}"
+                                                 type="{{ gang.gang_type }}"
+                                                 :type_icon="gang.gang_type.artwork"
+                                                 colour="{{ gang.colour }}" />
+                        {% endfor %}
+                    </c-slot>
+                {% endif %}
+                {% comment %}
+            The account menu: what you are signed in as, the doors only staff
+            have, and the way out. Each separator is drawn by the section
+            below it, so a section that is not there leaves no rule behind
+            and nobody sees two in a row.
+
+            c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
+            selectOption(), which is combobox machinery outside a dropdown's
+            scope, so it throws on click and the panel never closes.
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="menu">
+                        {% url 'admin:index' as admin_url_ %}
+                        {% url 'account_logout' as logout_url_ %}
+                        {% comment %}
+                    Who you are, at the top of the menu about you. The bar's
+                    own button drops the name below sm — the width belongs to
+                    the page there — and this is where it goes instead, so
+                    there is one click between a reader and the answer to
+                    which account they are signed in as. Drawn at every width
+                    rather than only the narrow ones: a menu whose first line
+                    appears and disappears with the window is one nobody
+                    learns the shape of.
+
+                    A line, not an item: it goes nowhere, because "Your
+                    account" directly below it is that door and two doors to
+                    one room is one too many. So it takes the surrounding text
+                    colour and no underline — accent and a hover rule would
+                    promise a click that does nothing.
+
+                    The badge is whichever one the account actually holds,
+                    from the platform's registry: supporter standing and staff
+                    flag are the account's business rather than this edition's,
+                    and c-n26.user-link is what asks.
+                        {% endcomment %}
+                        <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
+                            <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
+                        </div>
+                        {% comment %}
+                    The account page belongs to the site rather than to either
+                    edition, so it is named rather than spelled out: a name
+                    that stops resolving raises here, while a path that stops
+                    existing quietly serves a 404 nobody notices.
+
+                    The rule belongs to this item and not to the line above
+                    it, which is the discipline the whole menu follows: a
+                    section draws the break above itself, so nothing can be
+                    left holding a rule with nothing under it.
+                        {% endcomment %}
+                        <c-ui.dropdown.separator />
+                        <c-ui.dropdown.item href="{% url 'core:account_home' %}">
+                            Your account
+                        </c-ui.dropdown.item>
+                        {% comment %}
+                    The inbox, under the account it belongs to. One inbox
+                    serves both editions — a battle in the classic app and a
+                    gang here write to the same place — so this is the site's
+                    page, named rather than spelled out, and it is drawn in the
+                    site's own chrome when the reader arrives.
+
+                    The same pill as the one on the corner of the button that
+                    opens this menu, so the mark a reader saw from the outside
+                    is the mark they find inside. Labelled here and not there:
+                    this row is read out as it stands, where the button's own
+                    accessible name already carries the number.
+                        {% endcomment %}
+                        <c-ui.dropdown.item href="{% url 'core:notifications' %}">
+                            Notifications
+                            <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
+                        </c-ui.dropdown.item>
+                        {% comment %}
+                    The colour scheme, in the menu rather than in the bar. It is
+                    clicked once and then never again, and the row of the bar it
+                    used to sit in is wanted by the page's name and the switcher
+                    beside it on every screen.
+
+                    The group's own label is the break above it; a separator as
+                    well would say the same thing twice.
+                        {% endcomment %}
+                        <c-ui.dropdown.group label="Theme">
+                            <c-n26.site.nav.theme storage_key="theme" />
+                        </c-ui.dropdown.group>
+                        {% comment %}
+                    The doors into the admin and into content authoring, kept
+                    together and out of the drawer: the drawer is for the
+                    places every reader has, and writing content is something
+                    a handful of accounts do. The gate inside authoring is
+                    staff-only regardless — this only decides who sees it.
+
+                    The heading is the break between them and the account
+                    items above; a rule as well would say the same thing
+                    twice.
+                        {% endcomment %}
+                        {% if user.is_staff %}
+                            <c-ui.dropdown.group label="Staff only">
+                                {% if admin_url_ %}
+                                    <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                        Admin
+                                    </c-ui.dropdown.item>
+                                {% endif %}
+                                <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                                    Content Library
+                                </c-ui.dropdown.item>
+                                {% comment %}
+                            The way into the account whose gang or campaign is
+                            on screen, set by the read guards in
+                            n26.core.views.permissions and narrowed to a target
+                            this reader may take by
+                            gyrinx.context_processors.impersonation. Absent on
+                            a page that is already the reader's own, and while
+                            an overlay is running — a second one is refused.
+
+                            Starting is a POST, and the kit's menu row is a
+                            type="button" that cannot submit one, so the click
+                            is caught on the form around it: the row's own
+                            handler closes the menu, the click bubbles, and the
+                            form submits. Nothing is lost without JavaScript
+                            because this menu's panel is Alpine's and is not
+                            there at all.
+
+                            requestSubmit is preferred so the form's own submit
+                            event fires, and guarded because it throws where it
+                            is missing (Safari before 16).
+                                {% endcomment %}
+                                {% if impersonate_target %}
+                                    <form method="post"
+                                          action="{% url 'core:impersonate-start' impersonate_target.pk %}"
+                                          role="none"
+                                          x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                        <c-ui.dropdown.item variant="danger">
+                                            Impersonate {{ impersonate_target.username }}
+                                        </c-ui.dropdown.item>
+                                    </form>
+                                {% endif %}
+                            </c-ui.dropdown.group>
+                        {% endif %}
+                        {% if logout_url_ %}
+                            <c-ui.dropdown.separator />
+                            <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
+                                Sign out
+                            </c-ui.dropdown.item>
+                        {% endif %}
+                    </c-slot>
+                {% endif %}
+                <c-slot name="actions">
+                    {% comment %}
+                The way to the guides, as an icon: the bar has no room for a
+                word, and the drawer carries the worded entry. Hidden on
+                narrow screens for the same reason — the drawer is the
+                narrow reader's way in. A written-out flatpage path, like
+                the drawer's: the page is stored under its URL, not routed.
+                    {% endcomment %}
+                    {# djlint:off D018 — a flatpage is stored under its URL, not routed #}
+                    <a href="/help/n26/"
+                       title="Help"
+                       aria-label="Help"
+                       class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring sm:inline-flex dark:text-ink-400 dark:hover:text-white">
+                        <c-n26.icon name="circle-question-mark" class="size-5" />
+                    </a>
+                    {# djlint:on #}
+                    {% comment %}
+                Goes before help does as the bar narrows; the drawer's copy is
+                what a narrow reader gets instead.
+                    {% endcomment %}
+                    <a href="{% url 'core:dice' %}"
+                       title="Dice roller"
+                       aria-label="Dice roller"
+                       class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring lg:inline-flex dark:text-ink-400 dark:hover:text-white">
+                        <c-n26.icon name="dice-6" class="size-5" />
+                    </a>
+                    {% comment %}
+                The way to the other edition, left of the account menu.
+                Both editions are open to the same accounts, so there is
+                nothing to check here — the classic app's bar draws its
+                own copy on the same terms.
+                    {% endcomment %}
+                    <c-n26.site.edition-toggle />
+                    {% comment %}
+                A visitor with no account menu still needs somewhere to change
+                the scheme, so for them the toggle stays in the bar — where
+                there is room for it, the sign-in buttons being the only other
+                thing they carry.
+                    {% endcomment %}
+                    {% if not user.is_authenticated %}
+                        <c-ui.mode-toggle storage_key="theme" size="sm" />
+                        {% url 'account_login' as login_url_ %}
+                        {% url 'account_signup' as signup_url_ %}
+                        {% comment %}
+                    No ?next on the login and signup pages themselves — it would
+                    point back at the form and send the user round in a circle.
+                        {% endcomment %}
+                        {% if request.path != login_url_ and request.path != signup_url_ %}
+                            {% with next_param=request.get_full_path|urlencode %}
+                                <c-ui.button size="sm"
+                                             variant="default"
+                                             href="{{ login_url_ }}?next={{ next_param }}">
+                                    Sign In
+                                </c-ui.button>
+                                {% if signup_url_ %}
+                                    <c-ui.button size="sm"
+                                                 variant="primary"
+                                                 href="{{ signup_url_ }}?next={{ next_param }}">
+                                        Sign Up
+                                    </c-ui.button>
+                                {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <c-ui.button size="sm" variant="default" href="{{ login_url_ }}">
+                                Sign In
+                            </c-ui.button>
+                            {% if signup_url_ %}
+                                <c-ui.button size="sm" variant="primary" href="{{ signup_url_ }}">
+                                    Sign Up
+                                </c-ui.button>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </c-slot>
+            </c-n26.site.nav>
+        {% endblock site_nav %}
+        {% if is_impersonating %}
+            {% comment %}
+            Deliberately not dismissible: an impersonation notice must show on
+            every page. Stopping is a POST, so it goes in the `action` slot
+            rather than being a CTA link.
+            {% endcomment %}
+            {% url 'core:impersonate-stop' as stop_url_ %}
+            <c-n26.site.announcement tone="danger" dismissible="" id="impersonation-banner">
+                Impersonating <strong>{{ request.user.username }}</strong> — signed in as
+                {{ impersonator.username }}. Everything you do is recorded as this user.
+                <c-slot name="action">
+                    <form method="post" action="{{ stop_url_ }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <c-ui.button size="sm" variant="default" type="submit">
+                            Stop impersonating
+                        </c-ui.button>
+                    </form>
+                </c-slot>
+            </c-n26.site.announcement>
+        {% endif %}
+        {% block body %}
+            <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
+                {% if write_pause.state == "PAUSED" %}
+                    <c-ui.alert variant="warning" title="Changes paused for maintenance" class="mb-4">
+                        You can still view n26, but you cannot make changes. {{ write_pause.reason }}
+                    </c-ui.alert>
+                {% endif %}
+                {% comment %}
+                A block, so a page that needs its messages somewhere else can
+                empty this one and include the same partial where it wants
+                them. Reading the storage is what consumes it, so a page doing
+                that must empty this or the message draws twice.
+                {% endcomment %}
+                {% block messages %}
+                    {% include "n26/includes/messages.html" %}
+                {% endblock messages %}
+                {% block content %}
+                {% endblock content %}
+            </main>
+        {% endblock body %}
+        {% block extra_body %}
+        {% endblock extra_body %}
+        {% block footer %}
+            <c-n26.site.footer>
+                <c-n26.site.footer.column>
+                    <c-slot name="lead">
+                        <a href="/" class="n26-site-brand focus-ring" aria-label="Gyrinx">
+                            <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                                 alt=""
+                                 width="24"
+                                 height="24"
+                                 class="size-6">
+                            <span>Gyrinx</span>
+                        </a>
+                    </c-slot>
+                    <li>Designed and built in the UK.</li>
+                    {% if user.is_staff %}
+                        <li><c-n26.link href="{% url 'admin:index' %}" tone="muted">Admin</c-n26.link></li>
+                    {% endif %}
+                    <li class="flex items-center gap-3 pt-1">
+                        <c-n26.link href="https://github.com/gyrinx-app" tone="muted">
+                            <c-n26.icon name="github" class="size-5" label="GitHub" />
+                        </c-n26.link>
+                        <c-n26.link href="https://discord.gg/WnJFKfyEuj" tone="muted">
+                            <c-n26.icon name="discord" class="size-5" label="Discord" />
+                        </c-n26.link>
+                    </li>
+                </c-n26.site.footer.column>
+                {% comment %}
+                A literal &, not &amp; — cotton reads the attribute as text and
+                Django escapes it on output, so an entity gets double-escaped.
+
+                The pages are the site's flatpages, the same top-level list the
+                classic app's footer draws — docs belong to the site, not to an
+                edition, which is what lets this template load the platform's
+                pages tags (the badge_tags rule in n26/AGENTS.md). Visibility is
+                the reader's: a page gated to a group they are not in is not
+                offered.
+                {% endcomment %}
+                <c-n26.site.footer.column heading="Help & Documentation">
+                    {% get_root_pages for user as help_pages_ %}
+                    {% for page in help_pages_ %}
+                        <li>
+                            <c-n26.link href="{{ page.url }}" tone="muted">
+                                {{ page.title }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </c-n26.site.footer.column>
+                <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
+                    <c-slot name="content">
+                        <a href="https://patreon.com/Gyrinx"
+                           class="n26-img-tilt block rounded-box focus-ring">
+                            <img src="{% static 'platform/img/patreon.png' %}"
+                                 alt="Support Gyrinx on Patreon"
+                                 class="w-full rounded-box border border-box-border">
+                        </a>
+                    </c-slot>
+                </c-n26.site.footer.column>
+            </c-n26.site.footer>
+        {% endblock footer %}
+        {% comment %}
+        Where a partial update's messages appear as toasts. Dropped once,
+        here, because the store behind it registers on first sight and a
+        second container would draw every toast twice. Full pages still
+        render their messages in the alert block above, so nothing that
+        matters is shown only here.
+        {% endcomment %}
+        <c-ui.toast.container position="bottom-right" />
+        {% comment %}
+        The strip of a tab set is drawn client-side and its panels start
+        hidden, so without a script a tabbed region would be cut off entirely.
+        Showing every panel in a run keeps what they hold on the page.
+        {% endcomment %}
+        <noscript>
+            <style>
+                [role="tabpanel"] {
+                    display: block !important;
+                }
+            </style>
+        </noscript>
+        {% comment %}
+        A click that changes what the gang holds gets back only the parts of
+        the page its act changed, so the catalogue's filters and the section
+        on screen survive it. Every such control is an ordinary link or
+        submit underneath, so without JavaScript the whole page is served
+        instead. The design is documented in n26/core/views/htmx.py; the
+        support file carries the client half.
+        {% endcomment %}
+        {% comment %}
+        No history cache: every address htmx writes is a real one the server
+        renders whole, so the back button reloads rather than restoring a
+        snapshot — and snapshotting a catalogue of hundreds of rows into
+        localStorage overruns the quota and logs an error per swap.
+        {% endcomment %}
+        <meta name="htmx-config" content='{"historyCacheSize": 0}'>
+        <script defer src="{% static 'n26/htmx_support.js' %}"></script>
+        {% comment %}
+        The control that started a submission, a request or a navigation goes
+        busy until it ends, so a slow post is visibly working and a second
+        click cannot buy a second of something. It listens at the document, so
+        it covers every page this shell draws without a call site opting in;
+        what it does to a control is drawn by [data-busy] in app.css.
+        {% endcomment %}
+        <script defer src="{% static 'n26/busy.js' %}"></script>
+        {% comment %}
+        Read by <c-ui.dropdown strategy="fixed">, which hands it the trigger
+        and the menu when it opens. Deferred like everything else here: the
+        component only calls it once Alpine has walked the page.
+        {% endcomment %}
+        <script defer src="{% static 'n26/menu-position.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/htmx.min.js' %}"></script>
+        {% comment %}
+        Order matters: the kit's factories must be defined before Alpine walks
+        the document and evaluates an x-data that names one.
+        {% endcomment %}
+        <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine.min.js' %}"></script>
+        {% block extra_script %}
+        {% endblock extra_script %}
+    </body>
+</html>
