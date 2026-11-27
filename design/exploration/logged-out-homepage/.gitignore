@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+public/
+qa/
+__pycache__/
+src/homepage.json
+src/homepage-theme.css
+src/homepage-cotton-ui.css
+src/homepage-layout.css
