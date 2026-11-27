@@ -28,6 +28,10 @@ const options = {
         ["markdownlint-cli2-formatter-pretty", { appendLink: true }],
     ],
     ignores: [
+        // A bare name matches only the top-level directory. markdownlint does
+        // not apply a nested .gitignore unless gitignore is enabled, so
+        // tools/canvas-viewer/node_modules would be linted without this pattern.
+        "**/node_modules/**",
         "node_modules",
         "CHANGELOG.md",
         ".claude",

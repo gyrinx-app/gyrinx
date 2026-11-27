@@ -103,6 +103,8 @@ the generated image out of git and check it for private data before uploading.
   uses `GET .../actions/jobs/JOB_ID/logs` and prints the pytest `FAILURES`
   excerpt. `python scripts/fetch_job_logs.py` (current PR) or pass a PR number.
   Load the `ci-job-logs` skill.
-- `fmt-check.sh` / `fmt.sh`: Run / apply formatting.
+- `fmt-check.sh` / `fmt.sh`: Run / apply formatting. Markdown under any
+  `node_modules` directory, including `tools/canvas-viewer/node_modules`, is left
+  alone.
 - `manage.py`: Django management wrapper (also available as `manage` on `PATH` once the venv is
   active).
