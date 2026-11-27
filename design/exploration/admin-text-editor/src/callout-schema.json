@@ -1,0 +1,14 @@
+{
+  "textLimits": {
+    "label": 160,
+    "eyebrow": 200,
+    "body": 12000,
+    "detail": 12000,
+    "href": 2000,
+    "recipient": 320
+  },
+  "collections": {
+    "slides": { "limit": 20, "fields": { "eyebrow": 200, "body": 12000 } },
+    "links": { "limit": 30, "fields": { "label": 200, "href": 2000 } }
+  }
+}

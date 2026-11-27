@@ -1,0 +1,14 @@
+.venv/
+node_modules/
+public/
+qa/
+uploads/
+__pycache__/
+*.pyc
+demo.sqlite3
+demo.sqlite3-*
+.local-secret
+src/cotton.json
+src/lucide-icons.json
+src/theme.css
+src/cotton-ui.sources.css
