@@ -227,7 +227,10 @@ not pass `--pre-commit`, so it still sees untracked migration files.
 - Use descriptive names for migrations
 - Test migrations on production data dumps
 - Consider migration dependencies between apps
-- Use data migrations for complex transformations
+- Use data migrations for complex transformations. A pytest run uses
+  `--nomigrations`, so prove one by calling its function with
+  `historical_state(...).apps` from `gyrinx/historical_state.py`. The live
+  app registry already includes later fields.
 
 ### Parallel branches and the migration graph
 
